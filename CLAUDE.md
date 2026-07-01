@@ -90,7 +90,7 @@ nanping/
 
 **唯一标识**：用「课程号 + 老师」作为唯一评价对象。同一课程号不同老师授课，评价分开。
 
-**抓取数据去重**：教务系统返回的是教学班粒度（Level 3），比评价对象多出学期/分班维度。抓取时先按 `(code, teacher)` 聚拢到 Course 表（靠唯一约束去重），再将学期/班级信息写入 CourseOffering。
+**抓取数据去重**：教务系统返回的是教学班粒度（Level 3），比评价对象多出学期/分班维度。抓取时先按 `(code, teacher)` 聚拢到 Course 表（靠唯一约束去重），再将学期/专业信息写入 CourseOffering。
 
 ### User（用户）
 
@@ -122,10 +122,10 @@ nanping/
 | id         | INTEGER | 主键                       |
 | course_id  | INTEGER | 外键 → Course.id           |
 | semester   | TEXT    | 学期，如 "2024秋"          |
-| class_name | TEXT    | 班级/专业，如 "数学系大班" |
+| major      | TEXT    | 上课专业，如 "数学系大班"  |
 | created_at | TEXT    | 入库时间                   |
 
-唯一约束：`(course_id, semester, class_name)`
+唯一约束：`(course_id, semester, major)`
 
 ### Review（评价）
 
