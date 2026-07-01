@@ -171,6 +171,7 @@ KCH=00010 下共有三条记录的 SKJS：
 | user_id      | INTEGER | 外键 → User.id                    |
 | rating       | INTEGER | 评分（1-5），导入数据可为空       |
 | content      | TEXT    | 评价正文                          |
+| semester     | TEXT    | 学年学期，如 "2024秋"，可为空     |
 | is_anonymous | BOOL    | 展示时是否匿名                    |
 | is_deleted   | BOOL    | 软删除标记，默认 false            |
 | source       | TEXT    | 来源标识（导入数据用文件名，自有数据用 `native`） |
@@ -207,7 +208,7 @@ API 部署在独立子域名（如 `api.nanping.xxx`），路径中不含 `/api`
 | 方法   | 路径            | 说明                                |
 |--------|-----------------|-------------------------------------|
 | GET    | /review         | 查看评价列表。参数：`?course_id=`，分页 |
-| POST   | /review/add     | 提交新评价（需登录）。请求体：`course_id` + `rating` + `content` + `is_anonymous`。`user_id` 由 token 解析 |
+| POST   | /review/add     | 提交新评价（需登录）。请求体：`course_id` + `rating` + `content` + `semester`（可选） + `is_anonymous`。`user_id` 由 token 解析 |
 | DELETE | /review/delete  | 删除某条评价（需登录，只能删自己提交的）。请求体：`review_id`。软删除 |
 | GET    | /review/me      | 查看当前用户提交的所有评价（需登录） |
 
