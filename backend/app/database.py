@@ -3,6 +3,8 @@
 使用 SQLAlchemy 异步模式 + aiosqlite，配合 FastAPI 的 async/await。
 """
 
+from collections.abc import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
@@ -26,7 +28,7 @@ class Base(DeclarativeBase):
     pass
 
 
-async def get_db() -> AsyncSession:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI 依赖注入：为每个请求提供独立的数据库会话。
 
     用法（在 router 里）：

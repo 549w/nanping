@@ -1,6 +1,7 @@
 """ORM 模型定义。"""
 
-from sqlalchemy import Column, Integer, Text, Float
+from sqlalchemy import Column, Integer, Text, Float, ForeignKey, UniqueConstraint
+from sqlalchemy.orm import relationship
 
 from .database import Base
 
@@ -68,3 +69,50 @@ class RawCourse(Base):
     SFXGXK = Column(Integer, comment="是否新工学科课")
     SFXGXK_DISPLAY = Column(Text, comment="是否新工学科课显示")
     TKJG = Column(Text, comment="停开结果")
+
+
+class Course(Base):
+    """课程。
+
+    用 (code, teacher) 唯一标识一个评价对象。
+    同一课程号不同老师授课视为不同课程。
+    数据来源：从 RawCourse 按 (KCH, SKJS) 去重抽取。
+    """
+
+    __tablename__ = "course"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(Text, nullable=False, comment="课程编号")
+    name = Column(Text, nullable=False, comment="课程名称")
+    teacher = Column(Text, nullable=False, comment="授课教师")
+    department = Column(Text, comment="开课院系")
+    credits = Column(Float, comment="学分")
+    created_at = Column(Text, nullable=False, comment="入库时间")
+
+    __table_args__ = (
+        UniqueConstraint("code", "teacher", name="uq_course_code_teacher"),
+    )
+
+    offerings = relationship("CourseOffering", back_populates="course")
+
+
+class CourseOffering(Base):
+    """开课记录。
+
+    记录某门课程在哪个学期、面向什么专业开设。
+    从 RawCourse 按 (KCH, SKJS, XNXQDM_DISPLAY, SKBJ/JXBMC) 去重抽取。
+    """
+
+    __tablename__ = "course_offering"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    course_id = Column(Integer, ForeignKey("course.id"), nullable=False, comment="所属课程")
+    semester = Column(Text, nullable=False, comment="学年学期")
+    major = Column(Text, nullable=False, comment="上课专业")
+    created_at = Column(Text, nullable=False, comment="入库时间")
+
+    __table_args__ = (
+        UniqueConstraint("course_id", "semester", "major", name="uq_offering"),
+    )
+
+    course = relationship("Course", back_populates="offerings")

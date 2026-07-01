@@ -53,7 +53,9 @@ nanping/
 │   │   ├── test_courses.py
 │   │   └── test_review.py
 │   ├── scripts/
-│   │   ├── scrape_courses.py    # 教务系统抓取 → Course + CourseOffering
+│   │   ├── scrape_courses.py    # 教务系统抓取 → page_*.json
+│   │   ├── import_raw.py        # page_*.json → raw_course 表（一次性）
+│   │   ├── extract_courses.py   # raw_course → course + course_offering（一次性）
 │   │   └── import_reviews.py    # Excel 评价清洗 + 课程名匹配 → Review
 │   ├── requirements.txt
 │   └── .env.example
@@ -74,6 +76,8 @@ nanping/
 │       └── utils.js             # 通用工具函数
 ├── data/                         # 原始数据与清洗产物
 │   └── README.md
+├── docs/                         # 重要文档
+│   └── field-mapping.md          # API 字段对照表
 ├── .gitignore
 ├── CLAUDE.md
 └── README.md
@@ -90,7 +94,38 @@ nanping/
 
 **唯一标识**：用「课程号 + 老师」作为唯一评价对象。同一课程号不同老师授课，评价分开。
 
-**抓取数据去重**：教务系统返回的是教学班粒度（Level 3），比评价对象多出学期/分班维度。抓取时先按 `(code, teacher)` 聚拢到 Course 表（靠唯一约束去重），再将学期/专业信息写入 CourseOffering。
+**数据层级**：教务系统返回的是教学班粒度（Level 3），包含具体上课时间、教室等。导入时分为三级存储：
+
+```
+Level 1: RawCourse（原始教学班，39 字段，一一对应 API 返回）
+Level 2: Course（评价对象，按 code + teacher 聚类去重）
+Level 3: CourseOffering（开课记录，按 course + semester + major 去重）
+```
+
+### 教师聚类规则
+
+同一 KCH（课程号）下，将每条记录的 SKJS 按逗号拆分为教师集合。两张集合有**任意交集**即视为同一门课，取所有出现过的教师**并集**排序后存储。无交集的集合各自独立分课。
+
+例：
+```
+KCH=00010 下共有三条记录的 SKJS：
+  张三,李四
+  李四,王五
+  张三,李四,王五,赵六
+→ 三者互相有交集 → 合并为 1 门课，teacher = "李四,王五,张三,赵六"
+```
+
+### 字段回退规则
+
+| 目标字段 | 优先取 | 回退值 |
+|----------|--------|--------|
+| Course.name | KCM（不为空） | JXBMC |
+| Course.teacher | SKJS（不为空） | "未知" |
+| CourseOffering.major | SKBJ（不为空） | JXBMC |
+
+### RawCourse（原始教学班记录）**（注：此表已经存在，无需修改）
+
+教务系统 API 返回的 39 个字段完整保留，详见 `docs/field-mapping.md`。唯一用途：数据归档，后续从中抽取 Course 和 CourseOffering。
 
 ### User（用户）
 
@@ -108,7 +143,7 @@ nanping/
 | id         | INTEGER | 主键                          |
 | code       | TEXT    | 课程编号（来自教务系统）      |
 | name       | TEXT    | 标准课程名称（来自教务系统）  |
-| teacher    | TEXT    | 授课教师                      |
+| teacher    | TEXT    | 授课教师（聚类合并后的排序集合，逗号分隔） |
 | department | TEXT    | 开课院系                      |
 | credits    | REAL    | 学分                          |
 | created_at | TEXT    | 入库时间                      |
