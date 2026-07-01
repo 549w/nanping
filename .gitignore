@@ -16,6 +16,7 @@ htmlcov/
 venv/
 
 # 数据库
+data
 *.db
 *.sqlite
 *.sqlite3
@@ -43,3 +44,4 @@ Thumbs.db
 # 临时文件
 *.tmp
 .temp/
+fetch.js

@@ -1,0 +1,19 @@
+# Web 框架
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+
+# 数据库
+sqlalchemy[asyncio]>=2.0.0
+aiosqlite>=0.20.0
+
+# 认证
+PyJWT>=2.9.0
+
+# 安全
+slowapi>=0.1.9
+
+# 环境变量
+python-dotenv>=1.0.0
+
+# 数据处理（抓取 & 清洗）
+requests>=2.32.0
