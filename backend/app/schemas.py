@@ -185,3 +185,43 @@ class ReviewListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ============================================================
+# 批量课程匹配（浏览器插件用）
+# ============================================================
+
+
+class MatchQuery(BaseModel):
+    """单条匹配查询 —— 来自选课页面的一个课程行。"""
+
+    code: str = Field(min_length=1, description="课程号")
+    teacher: str = Field(default="", description="授课教师，逗号分隔")
+    name: str = Field(default="", description="课程名称")
+
+
+class MatchCourseItem(BaseModel):
+    """单条匹配结果：一个 Course + 其 top 评价。"""
+
+    course: CourseItem
+    top_reviews: list[ReviewItem] = []
+    match_level: str = Field(description="匹配级别：code（课程号匹配）/ teacher（教师匹配）")
+
+
+class MatchResult(BaseModel):
+    """单个 query 的匹配结果集合。"""
+
+    query_index: int = Field(description="对应请求中 queries 的索引")
+    matched: list[MatchCourseItem] = []
+
+
+class BatchMatchRequest(BaseModel):
+    """批量匹配请求 —— 插件一次性发送页面上所有课程行。"""
+
+    queries: list[MatchQuery] = Field(max_length=200, description="最多 200 条")
+
+
+class BatchMatchResponse(BaseModel):
+    """批量匹配响应。"""
+
+    results: list[MatchResult]

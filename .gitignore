@@ -45,3 +45,5 @@ Thumbs.db
 *.tmp
 .temp/
 fetch.js
+
+docs/extension_requirements

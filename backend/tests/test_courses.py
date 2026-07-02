@@ -184,3 +184,176 @@ class TestGetCourseDetail:
         data = response.json()
         assert data["avg_rating"] is None
         assert data["review_count"] == 0
+
+
+class TestMatchCourses:
+    """POST /courses/match 测试。"""
+
+    @pytest.mark.asyncio
+    async def test_exact_code_match(self, client, test_course, test_review):
+        """课程号精确匹配 + 教师重叠 → match_level='code'，含评价。"""
+        response = await client.post(
+            "/courses/match",
+            json={
+                "queries": [
+                    {"code": "00010", "teacher": "张三", "name": "测试课程"}
+                ]
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["results"]) == 1
+        result = data["results"][0]
+        assert result["query_index"] == 0
+        assert len(result["matched"]) >= 1
+        first = result["matched"][0]
+        assert first["match_level"] == "code"
+        assert first["course"]["code"] == "00010"
+        assert first["course"]["teacher"] == "张三"
+        assert first["course"]["review_count"] == 1
+        assert len(first["top_reviews"]) >= 1
+
+    @pytest.mark.asyncio
+    async def test_code_match_different_teacher(self, client, test_course, test_review):
+        """课程号匹配但教师不同 → 仍返回 code 级别匹配。"""
+        response = await client.post(
+            "/courses/match",
+            json={
+                "queries": [
+                    {"code": "00010", "teacher": "王五", "name": "测试课程"}
+                ]
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        result = data["results"][0]
+        assert len(result["matched"]) >= 1
+        assert result["matched"][0]["match_level"] == "code"
+
+    @pytest.mark.asyncio
+    async def test_teacher_fallback(self, client, test_course, test_review):
+        """课程号无匹配 → 回退到教师搜索 → match_level='teacher'。"""
+        response = await client.post(
+            "/courses/match",
+            json={
+                "queries": [
+                    {"code": "99999", "teacher": "张三", "name": "任意名称"}
+                ]
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        result = data["results"][0]
+        assert len(result["matched"]) >= 1
+        assert result["matched"][0]["match_level"] == "teacher"
+        assert result["matched"][0]["course"]["teacher"] == "张三"
+
+    @pytest.mark.asyncio
+    async def test_no_match(self, client):
+        """课程号和教师都匹配不到 → 返回空列表。"""
+        response = await client.post(
+            "/courses/match",
+            json={
+                "queries": [
+                    {"code": "99999", "teacher": "不存在", "name": "不存在的课"}
+                ]
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        result = data["results"][0]
+        assert result["matched"] == []
+
+    @pytest.mark.asyncio
+    async def test_multiple_queries(self, client, test_course, test_review):
+        """多条查询各自独立返回结果。"""
+        response = await client.post(
+            "/courses/match",
+            json={
+                "queries": [
+                    {"code": "00010", "teacher": "张三", "name": "测试课程"},
+                    {"code": "99999", "teacher": "不存在", "name": "不存在的课"},
+                ]
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["results"]) == 2
+        assert len(data["results"][0]["matched"]) >= 1  # 命中
+        assert data["results"][1]["matched"] == []  # 未命中
+
+    @pytest.mark.asyncio
+    async def test_empty_queries(self, client):
+        """空查询列表应正常返回。"""
+        response = await client.post(
+            "/courses/match",
+            json={"queries": []},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["results"] == []
+
+    @pytest.mark.asyncio
+    async def test_code_match_no_reviews_fallback_to_teacher(
+        self, client, db_session, test_course2, test_course, test_review
+    ):
+        """课程号匹配到的课程无评价 → 回退教师搜索 → 找到有评价的课程。"""
+        # test_course2: code="00020", teacher="李四", 无评价
+        # test_course:  code="00010", teacher="张三", 有评价
+        # 查询 code="00020"（无评价课程）+ teacher="张三"（有评价课程的老师）
+        # → 按 code 搜到 test_course2 但无评价
+        # → 回退按 teacher 搜到 test_course
+        response = await client.post(
+            "/courses/match",
+            json={
+                "queries": [
+                    {"code": "00020", "teacher": "张三", "name": "另一门课"}
+                ]
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        result = data["results"][0]
+        # 应该通过教师回退找到 test_course
+        assert len(result["matched"]) >= 1
+        assert result["matched"][0]["match_level"] == "teacher"
+        assert result["matched"][0]["course"]["code"] == "00010"
+
+    @pytest.mark.asyncio
+    async def test_anonymous_review_email_null(
+        self, client, test_course, test_review, test_review_anonymous
+    ):
+        """匿名评价的 user_email 应为 null。"""
+        response = await client.post(
+            "/courses/match",
+            json={
+                "queries": [
+                    {"code": "00010", "teacher": "张三", "name": "测试课程"}
+                ]
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        reviews = data["results"][0]["matched"][0]["top_reviews"]
+        emails = [r["user_email"] for r in reviews]
+        # 至少有一条匿名评价，其 user_email 为 null
+        assert None in emails
+
+    @pytest.mark.asyncio
+    async def test_deleted_review_not_included(
+        self, client, test_course, test_review, test_review_deleted
+    ):
+        """已删除评价不应出现在 top_reviews 中。"""
+        response = await client.post(
+            "/courses/match",
+            json={
+                "queries": [
+                    {"code": "00010", "teacher": "张三", "name": "测试课程"}
+                ]
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        reviews = data["results"][0]["matched"][0]["top_reviews"]
+        contents = [r["content"] for r in reviews]
+        assert "已删除的评价" not in contents
