@@ -8,7 +8,7 @@
 import { getToken, isLoggedIn } from "./auth.js";
 
 /** 后端 API 基地址，部署时修改此处即可。 */
-const API_BASE = "http://localhost:8000";
+const API_BASE = "https://npapi.eznju.com";
 
 // ---- 内部请求封装 ----
 
