@@ -111,6 +111,7 @@ class CourseItem(BaseModel):
     credits: float | None = None
     avg_rating: float | None = None
     review_count: int = 0
+    semesters: list[str] = []
 
 
 class CourseListResponse(BaseModel):

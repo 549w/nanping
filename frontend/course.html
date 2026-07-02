@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>课程详情 — 南评 Nanping</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -65,7 +66,7 @@ const courseIdStr = getQueryParam("id");
 if (!courseIdStr) {
   document.getElementById("course-header-section").innerHTML = `
     <div class="empty-state">
-      <div class="empty-icon">&#9888;</div>
+      <div class="empty-icon"><span class="material-symbols-outlined">warning</span></div>
       <p>请在<a href="index.html">课程搜索页面</a>选择一门课程</p>
     </div>`;
   document.getElementById("review-list-section").hidden = true;
@@ -97,7 +98,7 @@ async function loadCourseInfo() {
   if (!reviewCheck.ok && reviewCheck.status === 404) {
     headerSection.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">&#128533;</div>
+        <div class="empty-icon"><span class="material-symbols-outlined">sentiment_dissatisfied</span></div>
         <p>课程不存在或已删除</p>
         <p><a href="index.html">返回搜索</a></p>
       </div>`;
@@ -174,7 +175,7 @@ function renderReviews(data) {
   if (items.length === 0) {
     listEl.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">&#128221;</div>
+        <div class="empty-icon"><span class="material-symbols-outlined">rate_review</span></div>
         <p>暂无评价，成为第一个评价的人吧！</p>
       </div>`;
     return;
@@ -228,11 +229,11 @@ function renderAddReviewForm() {
       <!-- 星星评分 -->
       <label>评分</label>
       <div class="star-input" id="star-input">
-        <span class="star" data-value="1">★</span>
-        <span class="star" data-value="2">★</span>
-        <span class="star" data-value="3">★</span>
-        <span class="star" data-value="4">★</span>
-        <span class="star" data-value="5">★</span>
+        <span class="star" data-value="1"><span class="material-symbols-outlined">star</span></span>
+        <span class="star" data-value="2"><span class="material-symbols-outlined">star</span></span>
+        <span class="star" data-value="3"><span class="material-symbols-outlined">star</span></span>
+        <span class="star" data-value="4"><span class="material-symbols-outlined">star</span></span>
+        <span class="star" data-value="5"><span class="material-symbols-outlined">star</span></span>
       </div>
       <input type="hidden" name="rating" id="rating-value" value="0">
       <div id="rating-error" class="field-error" hidden>请选择评分</div>

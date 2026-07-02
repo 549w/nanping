@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>南评 Nanping — 南京大学课程评价</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -42,7 +43,7 @@
   <!-- 搜索结果 -->
   <section id="results-section">
     <div class="empty-state" id="initial-state">
-      <div class="empty-icon">&#128269;</div>
+      <div class="empty-icon"><span class="material-symbols-outlined">search</span></div>
       <p>请输入搜索条件开始搜索课程</p>
     </div>
   </section>
@@ -108,7 +109,7 @@ async function doSearch() {
   if (!result.ok) {
     resultsSection.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">&#9888;</div>
+        <div class="empty-icon"><span class="material-symbols-outlined">warning</span></div>
         <p>${escapeHtml(result.error || "搜索失败，请重试")}</p>
       </div>
     `;
@@ -126,7 +127,7 @@ function renderResults(data) {
   if (items.length === 0) {
     resultsSection.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">&#128533;</div>
+        <div class="empty-icon"><span class="material-symbols-outlined">sentiment_dissatisfied</span></div>
         <p>未找到相关课程，请尝试其他搜索条件</p>
       </div>
     `;
@@ -154,6 +155,7 @@ function renderResults(data) {
           ${course.department ? ` · ${escapeHtml(course.department)}` : ""}
           ${course.credits != null ? ` · ${course.credits} 学分` : ""}
         </div>
+        ${course.semesters?.length ? `<div class="card-semester">最近开课：${escapeHtml(course.semesters[0])}</div>` : ""}
         <div class="card-footer">
           <span>${renderStars(course.avg_rating)}</span>
           <span class="review-count">${course.review_count} 条评价</span>

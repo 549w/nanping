@@ -3,15 +3,32 @@
 GET /courses — 搜索课程，支持按课程号 / 名称 / 教师搜索，分页返回。
 """
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import Course, Review
+from ..models import Course, CourseOffering, Review
 from ..schemas import CourseItem, CourseListResponse
 
 router = APIRouter(tags=["课程"])
+
+
+def _shorten_semester(raw: str) -> str:
+    """将教务系统长格式学期转为短格式。
+
+    ``"2020-2021学年 第1学期"`` → ``"2020秋"``
+    ``"2020-2021学年 第2学期"`` → ``"2021春"``
+
+    无法识别时原样返回。
+    """
+    m = re.match(r"(\d{4})-(\d{4})学年 第(\d)学期", raw)
+    if not m:
+        return raw
+    y1, y2, term = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    return f"{y1}秋" if term == 1 else f"{y2}春"
 
 
 @router.get("/courses", response_model=CourseListResponse)
@@ -65,21 +82,46 @@ async def search_courses(
         .label("avg_rating")
     )
 
+    # 聚合子查询：最近开课学期（用于排序）
+    latest_semester_subq = (
+        select(func.max(CourseOffering.semester))
+        .where(CourseOffering.course_id == Course.id)
+        .correlate(Course)
+        .scalar_subquery()
+    )
+
     # 查询总数
     count_query = select(func.count(Course.id)).where(and_(*conditions))
     total = (await db.execute(count_query)).scalar() or 0
 
-    # 主查询
+    # 主查询：按评价数降序、最近学期从新到旧排序
     offset = (page - 1) * page_size
     query = (
         select(Course, review_count_subq, avg_rating_subq)
         .where(and_(*conditions))
-        .order_by(Course.id)
+        .order_by(review_count_subq.desc(), latest_semester_subq.desc())
         .offset(offset)
         .limit(page_size)
     )
     result = await db.execute(query)
     rows = result.all()
+
+    # 查询这些课程的开课学期
+    course_ids = [course.id for course, _, _ in rows]
+    semesters_map: dict[int, list[str]] = {}
+    if course_ids:
+        semester_query = (
+            select(CourseOffering.course_id, CourseOffering.semester)
+            .where(CourseOffering.course_id.in_(course_ids))
+            .distinct()
+        )
+        semester_result = await db.execute(semester_query)
+        for cid, sem in semester_result.all():
+            short = _shorten_semester(sem)
+            semesters_map.setdefault(cid, []).append(short)
+        # 按短格式降序排列（"2024秋" > "2024春" > "2023秋"）
+        for cid in semesters_map:
+            semesters_map[cid].sort(reverse=True)
 
     # 组装响应
     items: list[CourseItem] = []
@@ -94,6 +136,7 @@ async def search_courses(
                 credits=course.credits,
                 avg_rating=round(avg_rating, 1) if avg_rating is not None else None,
                 review_count=review_count if review_count is not None else 0,
+                semesters=semesters_map.get(course.id, []),
             )
         )
 

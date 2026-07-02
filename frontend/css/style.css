@@ -15,6 +15,12 @@
   --nanping-radius: 8px;
 }
 
+/* ---- Material Symbols 图标基础样式 ---- */
+.material-symbols-outlined {
+  vertical-align: middle;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
 /* ---- 顶部导航栏 ---- */
 .nanping-nav {
   display: flex;
@@ -152,6 +158,12 @@
   margin-bottom: 0.5rem;
 }
 
+.course-card .card-semester {
+  font-size: 0.82rem;
+  color: var(--nanping-primary);
+  margin-bottom: 0.3rem;
+}
+
 .course-card .card-footer {
   display: flex;
   justify-content: space-between;
@@ -258,8 +270,11 @@
   display: inline-flex;
   gap: 2px;
   color: var(--nanping-gold);
-  font-size: 1.1rem;
   line-height: 1;
+}
+
+.star-rating .material-symbols-outlined {
+  font-size: 1.2rem;
 }
 
 .star-rating .star-empty {
@@ -270,7 +285,6 @@
 .star-input {
   display: inline-flex;
   gap: 4px;
-  font-size: 1.8rem;
   cursor: pointer;
   user-select: none;
 }
@@ -278,6 +292,12 @@
 .star-input .star {
   color: #ccc;
   transition: color 0.1s;
+  display: inline-flex;
+  align-items: center;
+}
+
+.star-input .star .material-symbols-outlined {
+  font-size: 2rem;
 }
 
 .star-input .star.active,
@@ -404,8 +424,12 @@ button.is-loading .btn-spinner {
 }
 
 .empty-state .empty-icon {
-  font-size: 2.5rem;
   margin-bottom: 0.5rem;
+}
+
+.empty-state .empty-icon .material-symbols-outlined {
+  font-size: 3rem;
+  color: #bbb;
 }
 
 .empty-state p {
@@ -552,8 +576,8 @@ button.is-loading .btn-spinner {
     align-items: flex-start;
   }
 
-  .star-input {
-    font-size: 1.5rem;
+  .star-input .star .material-symbols-outlined {
+    font-size: 1.6rem;
   }
 
   .toast-container {
