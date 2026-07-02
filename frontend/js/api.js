@@ -91,6 +91,15 @@ export async function searchCourses({ code, name, teacher, page = 1, pageSize = 
 }
 
 /**
+ * 获取课程详情（含开课学期列表）。
+ * @param {number} courseId
+ * @returns {Promise<{ok, status?, data?: object, error?}>}
+ */
+export async function getCourseDetail(courseId) {
+  return request("GET", `/courses/${courseId}`);
+}
+
+/**
  * 获取课程评价列表。
  * @param {number} courseId
  * @param {number} [page=1]
@@ -181,6 +190,7 @@ export async function getMyReviews(page = 1, pageSize = 20) {
 // ---- 挂载到 window 供非模块脚本和内联脚本访问 ----
 window.NanpingAPI = {
   searchCourses,
+  getCourseDetail,
   getReviews,
   sendCode,
   register,

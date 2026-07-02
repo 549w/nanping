@@ -59,7 +59,7 @@
 <script type="module">
 import { escapeHtml, formatDate, getQueryParam, renderStars, renderPagination, showToast, setButtonLoading } from "./js/utils.js";
 import { isLoggedIn, requireAuth, removeToken, updateNav } from "./js/auth.js";
-import { searchCourses, getReviews, addReview } from "./js/api.js";
+import { searchCourses, getCourseDetail, getReviews, addReview } from "./js/api.js";
 
 // ---- 初始化 ----
 const courseIdStr = getQueryParam("id");
@@ -78,48 +78,53 @@ updateNav();
 
 // ---- 加载课程信息 ----
 let courseData = null;
+let availableSemesters = []; // [{semester, major}, ...]
 
 async function loadCourseInfo() {
   const headerSection = document.getElementById("course-header-section");
 
-  // 尝试从 sessionStorage 恢复课程元数据
-  const cached = sessionStorage.getItem(`course_${courseId}`);
-  if (cached) {
-    try {
-      courseData = JSON.parse(cached);
-      renderCourseHeader(courseData);
-      return;
-    } catch { /* 忽略缓存解析错误 */ }
-  }
+  const result = await getCourseDetail(courseId);
 
-  // 回退：通过搜索 courseId 对应的课程（后端无 GET /courses/{id}）
-  // 先用 review 接口验证课程是否存在
-  const reviewCheck = await getReviews(courseId, 1, 1);
-  if (!reviewCheck.ok && reviewCheck.status === 404) {
-    headerSection.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon"><span class="material-symbols-outlined">sentiment_dissatisfied</span></div>
-        <p>课程不存在或已删除</p>
-        <p><a href="index.html">返回搜索</a></p>
-      </div>`;
-    document.getElementById("review-list-section").hidden = true;
-    document.getElementById("add-review-section").hidden = true;
+  if (!result.ok) {
+    if (result.status === 404) {
+      headerSection.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon"><span class="material-symbols-outlined">sentiment_dissatisfied</span></div>
+          <p>课程不存在或已删除</p>
+          <p><a href="index.html">返回搜索</a></p>
+        </div>`;
+      document.getElementById("review-list-section").hidden = true;
+      document.getElementById("add-review-section").hidden = true;
+    } else {
+      headerSection.innerHTML = `
+        <div class="empty-state">
+          <p>加载课程信息失败：${escapeHtml(result.error || "请重试")}</p>
+        </div>`;
+    }
     return;
   }
 
-  // 无法获取详细元数据时显示最小头部
-  if (!courseData) {
-    headerSection.innerHTML = `
-      <div class="course-header">
-        <h1>课程 #${courseId}</h1>
-        <p class="header-code">课程信息需从搜索页进入查看</p>
-        <p><a href="index.html">前往搜索课程</a></p>
-      </div>`;
-  }
+  courseData = result.data;
+  availableSemesters = result.data.semesters || [];
+
+  // 缓存到 sessionStorage，供搜索页跳转回来时使用
+  sessionStorage.setItem(`course_${courseId}`, JSON.stringify(courseData));
+
+  renderCourseHeader(courseData);
+  // 课程信息加载完成后重新渲染评价表单（以填充学期下拉）
+  renderAddReviewForm();
 }
 
 function renderCourseHeader(data) {
   const headerSection = document.getElementById("course-header-section");
+  const uniqueSemesters = [...new Set(availableSemesters.map(s => s.semester))].sort().reverse();
+  const semestersHtml = uniqueSemesters.length
+    ? `<div class="header-semesters">
+        <span class="semesters-label">开课学期：</span>
+        ${uniqueSemesters.map(s => `<span class="semester-badge">${escapeHtml(s)}</span>`).join("")}
+      </div>`
+    : "";
+
   headerSection.innerHTML = `
     <div class="course-header">
       <p class="header-code">${escapeHtml(data.code)}</p>
@@ -129,6 +134,7 @@ function renderCourseHeader(data) {
         ${data.department ? `<span>开课院系：${escapeHtml(data.department)}</span>` : ""}
         ${data.credits != null ? `<span>${data.credits} 学分</span>` : ""}
       </div>
+      ${semestersHtml}
       <div class="header-stats">
         <span>${renderStars(data.avg_rating)}</span>
         <span class="header-avg">${data.avg_rating != null ? data.avg_rating.toFixed(1) + " 分" : ""}</span>
@@ -212,6 +218,37 @@ function renderReviews(data) {
   });
 }
 
+// ---- 学期下拉菜单 ----
+function renderSemesterSelect() {
+  // 按学期降序去重（同一学期多个专业只保留学期值）
+  const uniqueSemesters = [...new Set(availableSemesters.map(s => s.semester))].sort().reverse();
+
+  if (uniqueSemesters.length === 0) {
+    return `
+      <label>
+        学期
+        <select name="semester" disabled>
+          <option value="">暂无开课学期记录</option>
+        </select>
+      </label>
+      <div id="semester-error" class="field-error" hidden>该课程暂无开课学期记录，无法提交评价</div>`;
+  }
+
+  const options = uniqueSemesters.map(
+    sem => `<option value="${escapeHtml(sem)}">${escapeHtml(sem)}</option>`
+  ).join("");
+
+  return `
+    <label>
+      学期
+      <select name="semester" required>
+        <option value="">请选择学期</option>
+        ${options}
+      </select>
+    </label>
+    <div id="semester-error" class="field-error" hidden>请选择学期</div>`;
+}
+
 // ---- 添加评价表单 ----
 function renderAddReviewForm() {
   const container = document.getElementById("add-review-content");
@@ -249,10 +286,7 @@ function renderAddReviewForm() {
       <div id="content-error" class="field-error" hidden>请输入评价内容</div>
 
       <!-- 学期 -->
-      <label>
-        学期（可选）
-        <input type="text" name="semester" placeholder="如 2025秋">
-      </label>
+      ${renderSemesterSelect()}
 
       <!-- 匿名 -->
       <label>
@@ -323,6 +357,7 @@ function bindReviewForm() {
   const contentInput = document.getElementById("review-content");
   const ratingError = document.getElementById("rating-error");
   const contentError = document.getElementById("content-error");
+  const semesterError = document.getElementById("semester-error");
   const submitError = document.getElementById("submit-error");
   const submitBtn = document.getElementById("submit-review-btn");
 
@@ -330,10 +365,15 @@ function bindReviewForm() {
     e.preventDefault();
     ratingError.hidden = true;
     contentError.hidden = true;
+    if (semesterError) semesterError.hidden = true;
     submitError.hidden = true;
 
     const rating = parseInt(ratingInput.value, 10);
     const content = contentInput.value.trim();
+    const formData = new FormData(form);
+    const semesterRaw = formData.get("semester");
+    const semester = semesterRaw ? semesterRaw.trim() : "";
+    const isAnonymous = formData.get("is_anonymous") === "on";
 
     // 校验
     let valid = true;
@@ -350,11 +390,11 @@ function bindReviewForm() {
       contentError.hidden = false;
       valid = false;
     }
+    if (!semester) {
+      if (semesterError) semesterError.hidden = false;
+      valid = false;
+    }
     if (!valid) return;
-
-    const formData = new FormData(form);
-    const semester = formData.get("semester").trim() || null;
-    const isAnonymous = formData.get("is_anonymous") === "on";
 
     setButtonLoading(submitBtn, true);
 
@@ -394,6 +434,14 @@ function bindReviewForm() {
       }
     }
   });
+
+  // 选择学期后清除错误提示
+  const semesterSelect = form.querySelector('select[name="semester"]');
+  if (semesterSelect && semesterError) {
+    semesterSelect.addEventListener("change", () => {
+      semesterError.hidden = true;
+    });
+  }
 }
 
 // ---- 启动 ----

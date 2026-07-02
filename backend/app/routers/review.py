@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import get_current_user
 from ..database import get_db
 from ..limiter import limiter
-from ..models import Course, Review, User
+from ..models import Course, CourseOffering, Review, User
 from ..schemas import (
     MessageResponse,
     ReviewCreate,
@@ -23,6 +23,7 @@ from ..schemas import (
     ReviewItem,
     ReviewListResponse,
 )
+from .courses import _shorten_semester
 
 router = APIRouter(tags=["评价"])
 
@@ -119,6 +120,21 @@ async def create_review(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="课程不存在",
+        )
+
+    # 校验学期：必须是该课程实际开设过的学期
+    offering_semesters = (
+        await db.execute(
+            select(CourseOffering.semester)
+            .where(CourseOffering.course_id == data.course_id)
+            .distinct()
+        )
+    ).scalars().all()
+    valid_semesters = {_shorten_semester(s) for s in offering_semesters}
+    if data.semester not in valid_semesters:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"该课程未在 {data.semester} 开设，可选学期：{sorted(valid_semesters, reverse=True)}",
         )
 
     review = Review(

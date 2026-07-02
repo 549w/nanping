@@ -93,7 +93,7 @@ class TestCreateReview:
 
     @pytest.mark.asyncio
     async def test_create_review_authenticated(
-        self, client, test_course, auth_headers
+        self, client, test_course, test_offering, auth_headers
     ):
         """登录用户应能成功提交评价。"""
         response = await client.post(
@@ -103,6 +103,7 @@ class TestCreateReview:
                 "course_id": test_course.id,
                 "rating": 5,
                 "content": "非常棒的课程！",
+                "semester": "2024秋",
                 "is_anonymous": False,
             },
         )
@@ -121,6 +122,7 @@ class TestCreateReview:
                 "course_id": test_course.id,
                 "rating": 5,
                 "content": "未登录评价",
+                "semester": "2024秋",
             },
         )
         assert response.status_code == 401
@@ -135,12 +137,15 @@ class TestCreateReview:
                 "course_id": 99999,
                 "rating": 5,
                 "content": "对不存在课程的评价",
+                "semester": "2024秋",
             },
         )
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_create_review_invalid_rating(self, client, test_course, auth_headers):
+    async def test_create_review_invalid_rating(
+        self, client, test_course, test_offering, auth_headers
+    ):
         """评分超出 1-5 范围应返回 422。"""
         response = await client.post(
             "/review/add",
@@ -149,13 +154,14 @@ class TestCreateReview:
                 "course_id": test_course.id,
                 "rating": 6,
                 "content": "评分超范围",
+                "semester": "2024秋",
             },
         )
         assert response.status_code == 422
 
     @pytest.mark.asyncio
     async def test_create_review_anonymous(
-        self, client, test_course, auth_headers
+        self, client, test_course, test_offering, auth_headers
     ):
         """匿名评价的 user_email 应为 null。"""
         response = await client.post(
@@ -165,6 +171,7 @@ class TestCreateReview:
                 "course_id": test_course.id,
                 "rating": 3,
                 "content": "匿名评价内容",
+                "semester": "2024秋",
                 "is_anonymous": True,
             },
         )
@@ -174,7 +181,9 @@ class TestCreateReview:
         assert data["user_email"] is None
 
     @pytest.mark.asyncio
-    async def test_create_review_empty_content(self, client, test_course, auth_headers):
+    async def test_create_review_empty_content(
+        self, client, test_course, test_offering, auth_headers
+    ):
         """空评价内容应返回 422。"""
         response = await client.post(
             "/review/add",
@@ -183,9 +192,83 @@ class TestCreateReview:
                 "course_id": test_course.id,
                 "rating": 3,
                 "content": "",
+                "semester": "2024秋",
             },
         )
         assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_create_review_valid_semester(
+        self, client, test_course, test_offering, auth_headers
+    ):
+        """学期为该课程开课学期时应成功提交。"""
+        response = await client.post(
+            "/review/add",
+            headers=auth_headers,
+            json={
+                "course_id": test_course.id,
+                "rating": 4,
+                "content": "有学期的评价",
+                "semester": "2024秋",
+                "is_anonymous": False,
+            },
+        )
+        assert response.status_code == 201
+        assert response.json()["semester"] == "2024秋"
+
+    @pytest.mark.asyncio
+    async def test_create_review_invalid_semester(
+        self, client, test_course, test_offering, auth_headers
+    ):
+        """学期不在该课程开课列表中应返回 400。"""
+        response = await client.post(
+            "/review/add",
+            headers=auth_headers,
+            json={
+                "course_id": test_course.id,
+                "rating": 4,
+                "content": "非法学期的评价",
+                "semester": "2023春",
+                "is_anonymous": False,
+            },
+        )
+        assert response.status_code == 400
+        assert "2023春" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_create_review_missing_semester(
+        self, client, test_course, test_offering, auth_headers
+    ):
+        """缺少学期字段应返回 422。"""
+        response = await client.post(
+            "/review/add",
+            headers=auth_headers,
+            json={
+                "course_id": test_course.id,
+                "rating": 4,
+                "content": "缺少学期",
+                "is_anonymous": False,
+            },
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_create_review_no_offerings_with_semester(
+        self, client, test_course, auth_headers
+    ):
+        """课程无开课记录时，提交带学期的评价应返回 400。"""
+        response = await client.post(
+            "/review/add",
+            headers=auth_headers,
+            json={
+                "course_id": test_course.id,
+                "rating": 4,
+                "content": "无开课记录的学期",
+                "semester": "2025秋",
+                "is_anonymous": False,
+            },
+        )
+        assert response.status_code == 400
 
 
 class TestDeleteReview:
