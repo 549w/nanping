@@ -8,12 +8,23 @@ aiosqlite>=0.20.0
 
 # 认证
 PyJWT>=2.9.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0,<5.0.0
 
 # 安全
 slowapi>=0.1.9
+
+# 配置与校验
+pydantic-settings>=2.0.0
+email-validator>=2.0.0
 
 # 环境变量
 python-dotenv>=1.0.0
 
 # 数据处理（抓取 & 清洗）
 requests>=2.32.0
+
+# 测试
+pytest>=8.0.0
+pytest-asyncio>=0.24.0
+httpx>=0.27.0
