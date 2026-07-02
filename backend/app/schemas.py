@@ -114,6 +114,29 @@ class CourseItem(BaseModel):
     semesters: list[str] = []
 
 
+class SemesterOffering(BaseModel):
+    """单条开课记录。"""
+
+    semester: str
+    major: str
+
+
+class CourseDetail(BaseModel):
+    """课程详情响应。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    code: str
+    name: str
+    teacher: str
+    department: str | None = None
+    credits: float | None = None
+    avg_rating: float | None = None
+    review_count: int = 0
+    semesters: list[SemesterOffering] = []
+
+
 class CourseListResponse(BaseModel):
     """课程搜索分页响应。"""
 

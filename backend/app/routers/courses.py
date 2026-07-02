@@ -1,6 +1,7 @@
 """课程路由。
 
-GET /courses — 搜索课程，支持按课程号 / 名称 / 教师搜索，分页返回。
+GET /courses         — 搜索课程，支持按课程号 / 名称 / 教师搜索，分页返回。
+GET /courses/{id}    — 获取单个课程详情（含开课学期列表）。
 """
 
 import re
@@ -11,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..models import Course, CourseOffering, Review
-from ..schemas import CourseItem, CourseListResponse
+from ..schemas import CourseDetail, CourseItem, CourseListResponse, SemesterOffering
 
 router = APIRouter(tags=["课程"])
 
@@ -141,3 +142,69 @@ async def search_courses(
         )
 
     return CourseListResponse(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/courses/{course_id}", response_model=CourseDetail)
+async def get_course_detail(
+    course_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> CourseDetail:
+    """获取课程详情。
+
+    返回课程基本信息、平均评分、评价数量以及完整的开课学期列表（含专业）。
+    """
+    # 查询课程
+    course = await db.get(Course, course_id)
+    if course is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="课程不存在",
+        )
+
+    # 评价数
+    review_count = (
+        await db.execute(
+            select(func.count(Review.id)).where(
+                Review.course_id == course_id,
+                Review.is_deleted == 0,
+            )
+        )
+    ).scalar() or 0
+
+    # 平均分
+    avg_rating = (
+        await db.execute(
+            select(func.avg(Review.rating)).where(
+                Review.course_id == course_id,
+                Review.is_deleted == 0,
+                Review.rating.isnot(None),
+            )
+        )
+    ).scalar()
+
+    # 开课学期列表
+    offering_rows = (
+        await db.execute(
+            select(CourseOffering.semester, CourseOffering.major)
+            .where(CourseOffering.course_id == course_id)
+            .distinct()
+            .order_by(CourseOffering.semester.desc())
+        )
+    ).all()
+
+    semesters = [
+        SemesterOffering(semester=_shorten_semester(sem), major=major)
+        for sem, major in offering_rows
+    ]
+
+    return CourseDetail(
+        id=course.id,
+        code=course.code,
+        name=course.name,
+        teacher=course.teacher,
+        department=course.department,
+        credits=course.credits,
+        avg_rating=round(avg_rating, 1) if avg_rating is not None else None,
+        review_count=review_count,
+        semesters=semesters,
+    )

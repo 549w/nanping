@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import (
 
 from backend.app.database import Base, get_db
 from backend.app.main import app
-from backend.app.models import Course, Review, User
+from backend.app.models import Course, CourseOffering, Review, User
 from backend.app.auth import hash_password
 from backend.app.limiter import limiter
 
@@ -149,6 +149,28 @@ async def test_course2(db_session):
     await db_session.commit()
     await db_session.refresh(course)
     return course
+
+
+@pytest_asyncio.fixture
+async def test_offering(db_session, test_course):
+    """为 test_course 创建两条开课记录。"""
+    o1 = CourseOffering(
+        course_id=test_course.id,
+        semester="2024-2025学年 第1学期",
+        major="计算机科学与技术",
+        created_at="2025-01-01T00:00:00",
+    )
+    o2 = CourseOffering(
+        course_id=test_course.id,
+        semester="2024-2025学年 第2学期",
+        major="软件工程",
+        created_at="2025-01-01T00:00:00",
+    )
+    db_session.add_all([o1, o2])
+    await db_session.commit()
+    await db_session.refresh(o1)
+    await db_session.refresh(o2)
+    return [o1, o2]
 
 
 @pytest_asyncio.fixture
