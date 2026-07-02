@@ -6,7 +6,7 @@
 用法：
     cd nanping
     source .venv/bin/activate
-    python backend/scripts/import_reviews.py
+    python backend/scripts/import_reviews_by_code.py
 """
 
 import asyncio
@@ -17,7 +17,7 @@ import pandas as pd
 from sqlalchemy import Column, Integer, Text, Float, ForeignKey
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import select, delete
+from sqlalchemy import select
 
 # ---------- 配置 ----------
 
@@ -139,12 +139,10 @@ async def lookup_course(session: AsyncSession, code: str, teacher: str,
 async def main():
     await create_tables()
 
-    # 清空旧导入，从头来（开发阶段，后续可去掉）
     async with async_session() as session:
         sys_user_id = await ensure_system_user(session)
-        await session.execute(delete(Review))
         await session.commit()
-    print(f"已清空 review 表，系统用户 ID = {sys_user_id}\n")
+    print(f"系统用户 ID = {sys_user_id}\n")
 
     # ---- 处理 all_reviews.xlsx ----
     df = pd.read_excel(REVIEWS_PATH)
