@@ -3,10 +3,12 @@
 组装 FastAPI 应用，注册中间件、路由和生命周期事件。
 """
 
+from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -48,6 +50,11 @@ app.add_middleware(
 # ---- 限流 ----
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ---- 静态文件（插件热更新开发用） ----
+_ext_dir = Path(__file__).resolve().parent.parent.parent / "extension"
+if _ext_dir.exists():
+    app.mount("/extension", StaticFiles(directory=str(_ext_dir), html=False), name="extension")
 
 # ---- 路由注册 ----
 app.include_router(auth.router)
