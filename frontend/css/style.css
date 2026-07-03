@@ -176,6 +176,66 @@ code, pre, kbd, samp, .card-code, .header-code {
   margin-bottom: 0.6rem;
 }
 
+/* ---- 插件推广贴纸 ---- */
+.extension-sticker {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 640px;
+  margin: 0 auto 1.5rem;
+  padding: 16px 22px;
+  background: linear-gradient(135deg, var(--nanping-primary), #8B2D8E);
+  color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(107, 28, 108, 0.25);
+  font-family: var(--nanping-font-sans);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.extension-sticker .material-symbols-outlined {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.sticker-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.sticker-content strong {
+  font-weight: 700;
+}
+
+.sticker-content a {
+  color: #fff;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.sticker-content a:hover {
+  text-decoration: none;
+  opacity: 0.9;
+}
+
+.sticker-btn {
+  background: #fff;
+  color: var(--nanping-primary);
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.sticker-btn:hover {
+  background: #f5e6f5;
+  transform: translateY(-1px);
+}
+
 .extension-hint a {
   color: var(--nanping-primary);
   text-decoration: none;
@@ -728,6 +788,19 @@ button.is-loading .btn-spinner {
 
   .toast {
     max-width: 100%;
+  }
+
+  .extension-sticker {
+    flex-direction: column;
+    text-align: center;
+    gap: 10px;
+    padding: 14px 16px;
+    margin: 0 0.5rem 1rem;
+  }
+
+  .sticker-btn {
+    width: 100%;
+    text-align: center;
   }
 }
 

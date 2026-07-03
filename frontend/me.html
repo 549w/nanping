@@ -111,7 +111,7 @@ function renderReviews(data) {
       <div class="review-card" id="review-${review.id}">
         <div class="my-review-card">
           <div class="review-info">
-            <a class="course-link" href="course.html?id=${review.course_id}"
+            <a class="course-link" href="course.html?from=me&id=${review.course_id}"
                data-course='${escapeHtml(JSON.stringify(courseInfo))}'>
               ${escapeHtml(review.course_name || review.course_code || `课程 #${review.course_id}`)}
               ${review.course_code ? `<span style="color:#888;font-size:0.85rem;font-weight:normal;">(${escapeHtml(review.course_code)})</span>` : ""}

@@ -5,12 +5,14 @@ GET  /courses/{id}    — 获取单个课程详情（含开课学期列表）。
 POST /courses/match   — 批量匹配课程（浏览器插件用），按课程号→教师回退搜索。
 """
 
+import logging
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..activity import log_activity
 from ..database import get_db
 from ..models import Course, CourseOffering, Review, User
 from ..schemas import (
@@ -25,6 +27,7 @@ from ..schemas import (
     SemesterOffering,
 )
 
+logger = logging.getLogger("nanping.courses")
 router = APIRouter(tags=["课程"])
 
 
@@ -51,6 +54,7 @@ def _shorten_semester(raw: str) -> str:
 
 @router.get("/courses", response_model=CourseListResponse)
 async def search_courses(
+    request: Request,
     code: str | None = Query(None, description="课程编号（前缀匹配）"),
     name: str | None = Query(None, description="课程名称（模糊匹配）"),
     teacher: str | None = Query(None, description="授课教师（模糊匹配）"),
@@ -158,12 +162,21 @@ async def search_courses(
             )
         )
 
+    # 记录搜索活动日志
+    search_detail: dict = {}
+    if code: search_detail["code"] = code
+    if name: search_detail["name"] = name
+    if teacher: search_detail["teacher"] = teacher
+
+    await log_activity(db, request, "search", details=search_detail)
+
     return CourseListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.get("/courses/{course_id}", response_model=CourseDetail)
 async def get_course_detail(
     course_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> CourseDetail:
     """获取课程详情。
@@ -177,6 +190,13 @@ async def get_course_detail(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="课程不存在",
         )
+
+    # 记录查看课程详情活动日志
+    await log_activity(
+        db, request, "course_view",
+        target_type="course",
+        target_id=course_id,
+    )
 
     # 评价数
     review_count = (
@@ -522,22 +542,32 @@ async def _match_one(
 @router.post("/courses/match", response_model=BatchMatchResponse)
 async def match_courses(
     data: BatchMatchRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> BatchMatchResponse:
-    """批量匹配课程（浏览器插件用）。
-
-    插件从选课页面提取所有课程行，一次性发送到此端点进行匹配。
-    对每条 query 按「课程号 → 教师」三级回退搜索，
-    返回最佳匹配课程及其最新评价。
-
-    Args:
-        data: 包含最多 200 条 MatchQuery 的批量请求
-
-    Returns:
-        每条 query 的匹配结果，按 query_index 对应
-    """
+    """批量匹配课程（浏览器插件用）。"""
     results: list[MatchResult] = []
+    matched_count = 0
     for idx, query in enumerate(data.queries):
         result = await _match_one(idx, query, db)
+        if result.matched:
+            matched_count += 1
         results.append(result)
+
+    # 记录插件查询活动日志
+    detail = {
+        "query_count": len(data.queries),
+        "matched_count": matched_count,
+    }
+    if data.username:
+        detail["username"] = data.username
+    await log_activity(db, request, "plugin_query", details=detail)
+
+    logger.info(
+        "插件批量匹配: queries=%d matched=%d username=%s",
+        len(data.queries),
+        matched_count,
+        data.username or "未知",
+    )
+
     return BatchMatchResponse(results=results)

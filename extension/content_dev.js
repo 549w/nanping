@@ -12,6 +12,147 @@
   "use strict";
 
   // ============================================================
+  // 全局错误处理
+  // ============================================================
+
+  const HOMEPAGE_URL = "https://nanping.eznju.com";
+  const CONTACT_INFO = "QQ群：1048569521";
+
+  /**
+   * 显示全局错误横幅（仅在严重错误时调用）。
+   * 提供一个可见的提示，包含首页链接和联系方式。
+   */
+  function showFatalError(message) {
+    // 防止重复显示
+    if (document.getElementById("np-fatal-error")) return;
+
+    console.error("[Nanping] 严重错误:", message);
+
+    var banner = document.createElement("div");
+    banner.id = "np-fatal-error";
+    banner.style.cssText = [
+      "position: fixed",
+      "top: 10px",
+      "left: 50%",
+      "transform: translateX(-50%)",
+      "z-index: 9999999",
+      "background: #fef2f2",
+      "border: 2px solid #ef4444",
+      "border-radius: 12px",
+      "padding: 16px 24px",
+      "max-width: 600px",
+      "box-shadow: 0 8px 32px rgba(239, 68, 68, 0.3)",
+      "font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "font-size: 14px",
+      "line-height: 1.6",
+      "color: #991b1b",
+      "pointer-events: auto",
+    ].join(" !important;") + " !important;";
+
+    banner.innerHTML = [
+      '<div style="display: flex; align-items: flex-start; gap: 12px;">',
+      '  <span style="font-size: 24px; flex-shrink: 0;">⚠️</span>',
+      '  <div style="flex: 1;">',
+      '    <div style="font-weight: 600; margin-bottom: 8px;">南评插件遇到问题</div>',
+      '    <div style="margin-bottom: 12px; color: #7f1d1d;">' + escapeHtml(message) + '</div>',
+      '    <div style="display: flex; gap: 16px; flex-wrap: wrap;">',
+      '      <a href="' + HOMEPAGE_URL + '" target="_blank" style="color: #2563eb; text-decoration: underline; font-weight: 500;">访问南评首页</a>',
+      '      <span style="color: #6b7280;">联系方式：' + CONTACT_INFO + '</span>',
+      '    </div>',
+      '  </div>',
+      '  <button id="np-fatal-close" style="background: none; border: none; font-size: 20px; color: #991b1b; cursor: pointer; padding: 0; line-height: 1;">×</button>',
+      '</div>',
+    ].join("\n");
+
+    document.body.appendChild(banner);
+
+    // 绑定关闭按钮
+    var closeBtn = document.getElementById("np-fatal-close");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", function () {
+        banner.remove();
+      });
+    }
+  }
+
+  /**
+   * 安全地执行函数，捕获所有错误。
+   * @param {Function} fn - 要执行的函数
+   * @param {string} context - 错误上下文描述
+   * @param {*} fallback - 出错时的返回值
+   */
+  function safeExec(fn, context, fallback) {
+    try {
+      return fn();
+    } catch (err) {
+      console.error("[Nanping] " + context + " 出错:", err);
+      return fallback;
+    }
+  }
+
+  /**
+   * 安全地执行异步函数，捕获所有错误。
+   * @param {Function} fn - 要执行的异步函数
+   * @param {string} context - 错误上下文描述
+   * @param {*} fallback - 出错时的返回值
+   */
+  async function safeExecAsync(fn, context, fallback) {
+    try {
+      return await fn();
+    } catch (err) {
+      console.error("[Nanping] " + context + " 出错:", err);
+      return fallback;
+    }
+  }
+
+  /**
+   * 带超时的 fetch 封装。
+   * @param {string} url - 请求 URL
+   * @param {object} options - fetch 选项
+   * @param {number} timeoutMs - 超时时间（毫秒），默认 10 秒
+   */
+  async function fetchWithTimeout(url, options, timeoutMs) {
+    timeoutMs = timeoutMs || 10000;
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function () {
+      controller.abort();
+    }, timeoutMs);
+
+    try {
+      var response = await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+      clearTimeout(timeoutId);
+      return response;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === "AbortError") {
+        throw new Error("请求超时（" + timeoutMs + "ms）");
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * 安全的 DOM 查询，返回 null 而不是抛出错误。
+   */
+  function safeQuerySelector(selector) {
+    try {
+      return document.querySelector(selector);
+    } catch (err) {
+      console.warn("[Nanping] DOM 查询失败:", selector, err);
+      return null;
+    }
+  }
+
+  function safeQuerySelectorAll(selector) {
+    try {
+      return document.querySelectorAll(selector);
+    } catch (err) {
+      console.warn("[Nanping] DOM 查询失败:", selector, err);
+      return [];
+    }
+  }
+
+  // ============================================================
   // 配置
   // ============================================================
 
@@ -23,6 +164,7 @@
     ],
     MATCH_ENDPOINT: "/courses/match",
     REVIEW_ENDPOINT: "/review",
+    NEWS_ENDPOINT: "/news",
     DEBOUNCE_MS: 500, // 防抖间隔（避免 MutationObserver 频繁触发）
     PANEL_WIDTH: 420, // 侧边面板宽度（px）
   };
@@ -112,12 +254,7 @@
 
     for (const candidate of CONFIG.API_CANDIDATES) {
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 2000);
-        const resp = await fetch(candidate + "/", {
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
+        const resp = await fetchWithTimeout(candidate + "/", {}, 2000);
         if (resp.ok) {
           apiBase = candidate;
           console.log("[Nanping] API 地址:", apiBase);
@@ -140,27 +277,51 @@
   }
 
   /**
+   * 从页面提取当前登录用户名。
+   * @returns {string} 用户名，若找不到则返回空字符串
+   */
+  function extractUsername() {
+    var el = document.querySelector(".username");
+    return el ? el.textContent.trim() : "";
+  }
+
+  /**
    * 批量匹配课程。
    * 将页面上所有课程行一次性发送到后端，后端做三级回退搜索。
    *
    * @param {Array<{code: string, teacher: string, name: string}>} queries
+   * @param {string} username - 页面登录用户名
    * @returns {Promise<{results: Array}|null>}
    */
-  async function batchMatch(queries) {
+  async function batchMatch(queries, username) {
     const base = await getApiBase();
     if (!base) return null;
 
+    var body = { queries: queries };
+    if (username) {
+      body.username = username;
+    }
+
     try {
-      const resp = await fetch(base + CONFIG.MATCH_ENDPOINT, {
+      const resp = await fetchWithTimeout(base + CONFIG.MATCH_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ queries }),
-      });
+        body: JSON.stringify(body),
+      }, 15000); // 批量匹配可能需要更长时间
+
       if (!resp.ok) {
         console.warn("[Nanping] 匹配 API 返回非 200:", resp.status);
         return null;
       }
-      return await resp.json();
+
+      const data = await resp.json();
+      // 验证响应结构
+      if (!data || !Array.isArray(data.results)) {
+        console.warn("[Nanping] 匹配 API 返回数据格式错误:", data);
+        return null;
+      }
+
+      return data;
     } catch (err) {
       console.error("[Nanping] 匹配 API 请求失败:", err);
       return null;
@@ -184,19 +345,157 @@
       page: String(page),
       page_size: String(pageSize),
     });
+
     try {
-      const resp = await fetch(base + CONFIG.REVIEW_ENDPOINT + "?" + params.toString());
-      if (!resp.ok) return null;
-      return await resp.json();
+      const resp = await fetchWithTimeout(
+        base + CONFIG.REVIEW_ENDPOINT + "?" + params.toString(),
+        {},
+        10000
+      );
+      if (!resp.ok) {
+        console.warn("[Nanping] 评价 API 返回非 200:", resp.status);
+        return null;
+      }
+
+      const data = await resp.json();
+      // 验证响应结构
+      if (!data || !Array.isArray(data.items)) {
+        console.warn("[Nanping] 评价 API 返回数据格式错误:", data);
+        return null;
+      }
+
+      return data;
     } catch (err) {
       console.error("[Nanping] 评价获取失败:", err);
       return null;
     }
   }
 
+  /**
+   * 获取最新公告。
+   * @returns {Promise<Array|null>}
+   */
+  async function fetchNews() {
+    var base = await getApiBase();
+    if (!base) return null;
+    try {
+      var resp = await fetchWithTimeout(base + CONFIG.NEWS_ENDPOINT + "?limit=3", {}, 5000);
+      if (!resp.ok) {
+        console.warn("[Nanping] 公告 API 返回非 200:", resp.status);
+        return null;
+      }
+      const data = await resp.json();
+      // 验证响应结构
+      if (!Array.isArray(data)) {
+        console.warn("[Nanping] 公告 API 返回数据格式错误:", data);
+        return null;
+      }
+      return data;
+    } catch (err) {
+      console.warn("[Nanping] 公告获取失败:", err);
+      return null;
+    }
+  }
+
+  /**
+   * 显示公告横幅（独立于课程匹配流程）。
+   * 嵌入页面流中，放在顶部菜单下方，不遮挡任何元素。
+   */
+  async function showNewsBanner() {
+    try {
+      // 检查是否已显示过（避免重复）
+      if (document.getElementById("np-news-banner")) return;
+
+      var newsList = await fetchNews();
+      if (!newsList || newsList.length === 0) return;
+
+      // 只显示第一条最新公告
+      var news = newsList[0];
+      if (!news.title) return;
+
+      // 创建横幅元素
+      var banner = document.createElement("div");
+      banner.id = "np-news-banner";
+      banner.className = "np-news-banner";
+
+      // 内容预览（截取前 50 字符）
+      var preview = news.content || "";
+      if (preview.length > 50) {
+        preview = preview.substring(0, 50) + "...";
+      }
+
+      banner.innerHTML =
+        '<span class="np-news-banner-icon">📢</span>' +
+        '<div class="np-news-banner-content">' +
+        '  <div class="np-news-banner-title">' + esc(news.title) + '</div>' +
+        (preview ? '  <div class="np-news-banner-preview">' + esc(preview) + '</div>' : '') +
+        '</div>' +
+        '<a class="np-news-banner-link" href="https://nanping.eznju.com" target="_blank">查看详情</a>' +
+        '<button class="np-news-banner-close" title="关闭">×</button>';
+
+      // 绑定关闭按钮
+      var closeBtn = banner.querySelector(".np-news-banner-close");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", function () {
+          banner.style.transition = "opacity 0.3s, max-height 0.3s";
+          banner.style.opacity = "0";
+          banner.style.maxHeight = "0";
+          banner.style.overflow = "hidden";
+          banner.style.padding = "0";
+          banner.style.margin = "0";
+          setTimeout(function () {
+            banner.remove();
+          }, 300);
+        });
+      }
+
+      // 插入到 .top 区域之前（作为兄弟节点），避免被其内部布局影响
+      var topArea = document.querySelector("article#course-main .top");
+      if (topArea && topArea.parentNode) {
+        topArea.parentNode.insertBefore(banner, topArea);
+      } else {
+        // 退而求其次：插入到 body 首个可见容器之前
+        var firstElement = document.body.querySelector("article, main, .container, .content");
+        if (firstElement) {
+          firstElement.parentNode.insertBefore(banner, firstElement);
+        } else {
+          document.body.insertBefore(banner, document.body.firstChild);
+        }
+      }
+
+      console.log("[Nanping] 公告横幅已显示:", news.title);
+    } catch (err) {
+      console.error("[Nanping] showNewsBanner 出错:", err);
+    }
+  }
+
   // ============================================================
   // 内联徽章注入
   // ============================================================
+
+  /**
+   * 渲染星级评分 HTML。
+   * @param {number} rating - 评分 (0-5)
+   * @returns {string} 星级 HTML
+   */
+  function renderStars(rating) {
+    var fullStars = Math.floor(rating);
+    var hasHalf = rating - fullStars >= 0.5;
+    var emptyStars = 5 - fullStars - (hasHalf ? 1 : 0);
+
+    var html = '<span class="np-stars">';
+    for (var i = 0; i < fullStars; i++) {
+      html += '<span class="np-star-full">★</span>';
+    }
+    if (hasHalf) {
+      html += '<span class="np-star-half">★</span>';
+    }
+    for (var i = 0; i < emptyStars; i++) {
+      html += '<span class="np-star-empty">☆</span>';
+    }
+    html += '</span>';
+    return html;
+  }
 
   /**
    * 为单个课程行注入评分徽章。
@@ -209,67 +508,80 @@
    * @param {{matched: Array}|null} matchResult - API 返回的单条匹配结果
    */
   function injectBadge(row, matchResult) {
-    if (state.processedRows.has(row)) return;
-    state.processedRows.add(row);
+    try {
+      if (state.processedRows.has(row)) return;
+      state.processedRows.add(row);
 
-    var nameCell = row.querySelector(".kcmc");
-    if (!nameCell) return;
+      var nameCell = row.querySelector(".kcmc");
+      if (!nameCell) return;
 
-    // 避免重复注入（双重保险）
-    if (nameCell.querySelector(".np-badge-row")) return;
+      // 避免重复注入（双重保险）
+      if (nameCell.querySelector(".np-badge-row")) return;
 
-    // 在课程名单元格末尾追加徽章行
-    var badgeRow = document.createElement("div");
-    badgeRow.className = "np-badge-row";
+      // 在课程名单元格末尾追加徽章行
+      var badgeRow = document.createElement("div");
+      badgeRow.className = "np-badge-row";
 
-    var hasMatch = matchResult && matchResult.matched && matchResult.matched.length > 0;
-    var exactId = matchResult && matchResult.exact_course_id;
+      var hasMatch = matchResult && matchResult.matched && matchResult.matched.length > 0;
+      var exactId = matchResult && matchResult.exact_course_id;
 
-    if (hasMatch) {
-      var best = matchResult.matched[0];
-      var c = best.course;
-      var ratingText = c.avg_rating != null ? "⭐ " + c.avg_rating.toFixed(1) : "";
+      if (hasMatch) {
+        var best = matchResult.matched[0];
+        var c = best.course;
 
-      // 解析 match_level 生成字段标签（仅用最严格策略命中的第一个 course）
-      var fieldTags = matchLevelToTags(best.match_level);
-      var tagsHtml = fieldTags.map(function (t) {
-        return '<span class="np-badge-tag np-tag-' + t.cls + '">匹配' + t.label + '</span>';
-      }).join("");
+        // 解析 match_level 生成字段标签（仅用最严格策略命中的第一个 course）
+        var fieldTags = matchLevelToTags(best.match_level);
+        var tagsHtml = fieldTags.map(function (t) {
+          return '<span class="np-badge-tag np-tag-' + t.cls + '">匹配' + t.label + '</span>';
+        }).join("");
 
-      badgeRow.innerHTML =
-        tagsHtml +
-        '<span class="np-badge-rating">' + ratingText + '</span>' +
-        '<span class="np-badge-count">' + c.review_count + "条评价</span>" +
-        '<button class="np-badge-btn">查看评价</button>';
+        var ratingHtml = "";
+        if (c.avg_rating != null) {
+          ratingHtml = renderStars(c.avg_rating) +
+            '<span class="np-badge-rating">' + c.avg_rating.toFixed(1) + '</span>';
+        }
 
-      // 写评价按钮
-      if (exactId) {
-        badgeRow.innerHTML +=
-          ' <a class="np-badge-write" href="https://nanping.eznju.com/course.html?id=' + exactId + '" target="_blank">写评价</a>';
+        badgeRow.innerHTML =
+          tagsHtml +
+          ratingHtml +
+          '<span class="np-badge-count">' + c.review_count + "条评价</span>" +
+          '<button class="np-badge-btn">查看评价</button>';
+
+        // 写评价按钮
+        if (exactId) {
+          badgeRow.innerHTML +=
+            ' <a class="np-badge-write" href="https://nanping.eznju.com/course.html?from=plugin_v0.1.0_inline&id=' + exactId + '" target="_blank">写评价</a>';
+        }
+      } else {
+        var noReviewHtml = '<span class="np-badge-none">暂无评价</span>';
+        if (exactId) {
+          noReviewHtml +=
+            ' <a class="np-badge-write" href="https://nanping.eznju.com/course.html?from=plugin_v0.1.0_inline&id=' + exactId + '" target="_blank">写评价</a>';
+        }
+        badgeRow.innerHTML = noReviewHtml;
       }
-    } else {
-      var noReviewHtml = '<span class="np-badge-none">暂无评价</span>';
-      if (exactId) {
-        noReviewHtml +=
-          ' <a class="np-badge-write" href="https://nanping.eznju.com/course.html?id=' + exactId + '" target="_blank">写评价</a>';
+
+      // 点击「查看」→ 打开侧边面板
+      if (hasMatch) {
+        var btn = badgeRow.querySelector(".np-badge-btn");
+        if (btn) {
+          btn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            e.preventDefault();
+            safeExecAsync(function () {
+              return openSidePanel(matchResult);
+            }, "打开侧边面板", null);
+          });
+        }
       }
-      badgeRow.innerHTML = noReviewHtml;
+
+      // 把 matchResult 挂在行元素上，方便侧边面板复用
+      row._npMatchResult = matchResult;
+
+      nameCell.appendChild(badgeRow);
+    } catch (err) {
+      console.error("[Nanping] injectBadge 出错:", err);
     }
-
-    // 点击「查看」→ 打开侧边面板
-    if (hasMatch) {
-      var btn = badgeRow.querySelector(".np-badge-btn");
-      btn.addEventListener("click", function (e) {
-        e.stopPropagation();
-        e.preventDefault();
-        openSidePanel(matchResult);
-      });
-    }
-
-    // 把 matchResult 挂在行元素上，方便侧边面板复用
-    row._npMatchResult = matchResult;
-
-    nameCell.appendChild(badgeRow);
   }
 
   // ============================================================
@@ -321,7 +633,7 @@
       '<div class="np-panel-header">' +
       '<div>' +
       '<h2 class="np-panel-title">课程评价</h2>' +
-      '<a class="np-header-link" href="https://nanping.eznju.com" target="_blank">到「南评」写评价！→</a>' +
+      '<a class="np-header-link" href="https://nanping.eznju.com?from=plugin_v0.1.0_panel" target="_blank">到「南评」写评价！→</a>' +
       "</div>" +
       '<button class="np-close-btn">✕</button>' +
       "</div>" +
@@ -420,15 +732,15 @@
       "  display: flex; align-items: center; gap: 10px; margin-top: 10px;" +
       "  padding-top: 10px; border-top: 1px solid #e5e7eb;" +
       "}" +
-      ".np-rating { font-size: 17px; font-weight: 700; color: #f59e0b; }" +
+      ".np-rating { font-size: 17px; font-weight: 700; color: #6B1C6C; }" +
       ".np-rating-none { font-size: 14px; color: #9ca3af; }" +
       ".np-review-count { font-size: 13px; color: #6b7280; }" +
       ".np-write-review-btn {" +
-      "  font-size: 13px; color: #fff; background: #f59e0b;" +
+      "  font-size: 13px; color: #fff; background: #6B1C6C;" +
       "  padding: 5px 14px; border-radius: 6px; text-decoration: none; font-weight: 600;" +
       "  margin-left: auto; white-space: nowrap; transition: background 0.15s;" +
       "}" +
-      ".np-write-review-btn:hover { background: #d97706; text-decoration: none; }" +
+      ".np-write-review-btn:hover { background: #4E1450; text-decoration: none; }" +
       ".np-match-tag {" +
       "  display: inline-block; font-size: 12px; font-weight: 600;" +
       "  padding: 4px 10px; border-radius: 6px; white-space: nowrap;" +
@@ -456,7 +768,7 @@
       "  display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;" +
       "}" +
       ".np-review-author { font-size: 13px; color: #6b7280; font-weight: 500; }" +
-      ".np-review-rating { color: #f59e0b; font-size: 13px; font-weight: 600; }" +
+      ".np-review-rating { color: #6B1C6C; font-size: 13px; font-weight: 600; }" +
       ".np-review-content {" +
       "  font-size: 14px; line-height: 1.65; color: #374151; white-space: pre-wrap; word-break: break-word;" +
       "}" +
@@ -482,29 +794,42 @@
    * @param {{matched: Array}} matchResult - 匹配结果（含 course + top_reviews）
    */
   async function openSidePanel(matchResult) {
-    ensureSidePanel();
+    try {
+      ensureSidePanel();
 
-    // 动画显示
-    state.host.style.pointerEvents = "auto";
-    state.overlay.classList.add("np-open");
-    state.panel.classList.add("np-open");
-    state.isPanelOpen = true;
-    document.body.style.overflow = "hidden";
+      // 动画显示
+      if (state.host) state.host.style.pointerEvents = "auto";
+      if (state.overlay) state.overlay.classList.add("np-open");
+      if (state.panel) state.panel.classList.add("np-open");
+      state.isPanelOpen = true;
+      document.body.style.overflow = "hidden";
 
-    // 渲染内容
-    renderPanelContent(matchResult);
+      // 渲染内容
+      renderPanelContent(matchResult);
+    } catch (err) {
+      console.error("[Nanping] openSidePanel 出错:", err);
+      // 尝试关闭面板并显示错误
+      safeExec(closeSidePanel, "关闭面板", null);
+    }
   }
 
   /**
    * 关闭侧边面板。
    */
   function closeSidePanel() {
-    if (!state.panel) return;
-    state.overlay.classList.remove("np-open");
-    state.panel.classList.remove("np-open");
-    state.isPanelOpen = false;
-    state.host.style.pointerEvents = "none";
-    document.body.style.overflow = "";
+    try {
+      if (!state.panel) return;
+      if (state.overlay) state.overlay.classList.remove("np-open");
+      if (state.panel) state.panel.classList.remove("np-open");
+      state.isPanelOpen = false;
+      if (state.host) state.host.style.pointerEvents = "none";
+      document.body.style.overflow = "";
+    } catch (err) {
+      console.error("[Nanping] closeSidePanel 出错:", err);
+      // 强制重置状态
+      state.isPanelOpen = false;
+      document.body.style.overflow = "";
+    }
   }
 
   /**
@@ -512,56 +837,70 @@
    * 展示所有匹配到的课程，每个课程一张卡片 + 其最新评价。
    */
   function renderPanelContent(matchResult) {
-    var body = state.panel.querySelector(".np-panel-body");
-    if (!body) return;
+    try {
+      var body = state.panel ? state.panel.querySelector(".np-panel-body") : null;
+      if (!body) return;
 
-    if (!matchResult || !matchResult.matched || matchResult.matched.length === 0) {
-      body.innerHTML =
-        '<div class="np-empty">暂无评价数据</div>';
-      return;
+      if (!matchResult || !matchResult.matched || matchResult.matched.length === 0) {
+        body.innerHTML =
+          '<div class="np-empty">暂无评价数据</div>';
+        return;
+      }
+
+      var html = "";
+      matchResult.matched.forEach(function (item) {
+        try {
+          var c = item.course;
+          var reviews = item.top_reviews || [];
+
+          // 每个 course 独立解析其 match_level，生成字段标签
+          var fieldTags = matchLevelToTags(item.match_level);
+          var tagsHtml = fieldTags.map(function (t) {
+            return '<span class="np-match-tag np-tag-' + t.cls + '">匹配' + t.label + '</span>';
+          }).join("");
+
+          html +=
+            '<div class="np-course-card" data-course-id="' + c.id + '">' +
+            '  <div class="np-course-header-row">' +
+            '    <div>' +
+            '      <div class="np-course-code">' + esc(c.code) + '</div>' +
+            '      <div class="np-course-name">' + esc(c.name) + '</div>' +
+            '      <div class="np-course-teacher">' + esc(c.teacher) + '</div>' +
+            "    </div>" +
+            '    <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">' + tagsHtml + '</div>' +
+            "  </div>" +
+            '  <div class="np-course-stats">' +
+            (c.avg_rating != null
+              ? '<span class="np-rating">⭐ ' + c.avg_rating.toFixed(1) + '</span>'
+              : '<span class="np-rating-none">暂无评分</span>') +
+            '    <span class="np-review-count">' + c.review_count + ' 条评价</span>' +
+            '    <a class="np-write-review-btn" href="https://nanping.eznju.com/course.html?from=plugin_v0.1.0_panel&id=' + c.id + '" target="_blank">写评价</a>' +
+            "  </div>" +
+            '  <div class="np-section-title">最新评价</div>' +
+            reviews.map(renderReviewHtml).join("") +
+            (c.review_count > reviews.length
+              ? '<button class="np-load-more" data-course-id="' + c.id + '" data-page="0">' +
+                '加载更多评价 ▼</button>'
+              : "") +
+            "</div>";
+        } catch (err) {
+          console.error("[Nanping] 渲染课程卡片出错:", err);
+        }
+      });
+
+      body.innerHTML = html;
+
+      // 绑定「加载更多」按钮
+      safeExec(function () {
+        bindLoadMoreButtons(body);
+      }, "绑定加载更多按钮", null);
+    } catch (err) {
+      console.error("[Nanping] renderPanelContent 出错:", err);
+      var body = state.panel ? state.panel.querySelector(".np-panel-body") : null;
+      if (body) {
+        body.innerHTML = '<div class="np-empty">渲染评价时出错</div>';
+      }
     }
-
-    var html = "";
-    matchResult.matched.forEach(function (item) {
-      var c = item.course;
-      var reviews = item.top_reviews || [];
-
-      // 每个 course 独立解析其 match_level，生成字段标签
-      var fieldTags = matchLevelToTags(item.match_level);
-      var tagsHtml = fieldTags.map(function (t) {
-        return '<span class="np-match-tag np-tag-' + t.cls + '">匹配' + t.label + '</span>';
-      }).join("");
-
-      html +=
-        '<div class="np-course-card" data-course-id="' + c.id + '">' +
-        '  <div class="np-course-header-row">' +
-        '    <div>' +
-        '      <div class="np-course-code">' + esc(c.code) + '</div>' +
-        '      <div class="np-course-name">' + esc(c.name) + '</div>' +
-        '      <div class="np-course-teacher">' + esc(c.teacher) + '</div>' +
-        "    </div>" +
-        '    <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">' + tagsHtml + '</div>' +
-        "  </div>" +
-        '  <div class="np-course-stats">' +
-        (c.avg_rating != null
-          ? '<span class="np-rating">⭐ ' + c.avg_rating.toFixed(1) + '</span>'
-          : '<span class="np-rating-none">暂无评分</span>') +
-        '    <span class="np-review-count">' + c.review_count + ' 条评价</span>' +
-        '    <a class="np-write-review-btn" href="https://nanping.eznju.com/course.html?id=' + c.id + '" target="_blank">写评价</a>' +
-        "  </div>" +
-        '  <div class="np-section-title">最新评价</div>' +
-        reviews.map(renderReviewHtml).join("") +
-        (c.review_count > reviews.length
-          ? '<button class="np-load-more" data-course-id="' + c.id + '" data-page="0">' +
-            '加载更多评价 ▼</button>'
-          : "") +
-        "</div>";
-    });
-
-    body.innerHTML = html;
-
-    // 绑定「加载更多」按钮
-    bindLoadMoreButtons(body);
   }
 
   /**
@@ -685,8 +1024,23 @@
     "  margin-top: 6px !important; font-size: 13px !important; line-height: 1.4 !important;" +
     "  flex-wrap: wrap !important;" +
     "}" +
+    ".np-stars {" +
+    "  display: inline-flex !important; align-items: center !important; gap: 1px !important;" +
+    "  font-size: 14px !important; line-height: 1 !important; white-space: nowrap !important;" +
+    "}" +
+    ".np-star-full {" +
+    "  color: #6B1C6C !important;" +
+    "}" +
+    ".np-star-half {" +
+    "  color: #6B1C6C !important;" +
+    "  opacity: 0.5 !important;" +
+    "}" +
+    ".np-star-empty {" +
+    "  color: #C9A0CB !important;" +
+    "}" +
     ".np-badge-rating {" +
-    "  font-weight: 700 !important; color: #f59e0b !important; white-space: nowrap !important;" +
+    "  font-weight: 700 !important; color: #6B1C6C !important; white-space: nowrap !important;" +
+    "  margin-left: 4px !important;" +
     "}" +
     ".np-badge-count {" +
     "  color: #6b7280 !important; white-space: nowrap !important;" +
@@ -702,14 +1056,14 @@
     "  background: #dbeafe !important;" +
     "}" +
     ".np-badge-write {" +
-    "  background: #f59e0b !important; color: #fff !important;" +
+    "  background: #6B1C6C !important; color: #fff !important;" +
     "  border-radius: 4px !important; padding: 2px 10px !important;" +
     "  font-size: 12px !important; font-weight: 600 !important;" +
     "  text-decoration: none !important; white-space: nowrap !important;" +
     "  transition: background 0.15s !important;" +
     "}" +
     ".np-badge-write:hover {" +
-    "  background: #d97706 !important; text-decoration: none !important;" +
+    "  background: #4E1450 !important; text-decoration: none !important;" +
     "}" +
     ".np-badge-none {" +
     "  color: #9ca3af !important; font-size: 12px !important; white-space: nowrap !important;" +
@@ -726,6 +1080,56 @@
     "}" +
     ".np-badge-tag.np-tag-name {" +
     "  background: #dcfce7 !important; color: #15803d !important;" +
+    "}" +
+    /* ===== 公告横幅（与前端首页风格统一）===== */
+    ".np-news-banner {" +
+    "  background: #6B1C6C !important;" +
+    "  color: #ffffff !important;" +
+    "  padding: 12px 20px !important; margin: 8px 0 !important;" +
+    "  border-radius: 8px !important;" +
+    "  box-shadow: 0 2px 8px rgba(107, 28, 108, 0.2) !important;" +
+    "  font-family: 'Noto Sans SC', '思源黑体', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif !important;" +
+    "  font-size: 14px !important; line-height: 1.5 !important;" +
+    "  display: flex !important; align-items: center !important; gap: 12px !important;" +
+    "  animation: np-news-slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;" +
+    "}" +
+    ".np-news-banner-icon {" +
+    "  font-size: 20px !important; flex-shrink: 0 !important;" +
+    "}" +
+    ".np-news-banner-content {" +
+    "  flex: 1 !important; min-width: 0 !important;" +
+    "}" +
+    ".np-news-banner-title {" +
+    "  font-weight: 600 !important; margin-bottom: 2px !important;" +
+    "  white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;" +
+    "  font-family: 'Noto Serif SC', '思源宋体', serif !important;" +
+    "}" +
+    ".np-news-banner-preview {" +
+    "  font-size: 13px !important; opacity: 0.9 !important;" +
+    "  white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;" +
+    "}" +
+    ".np-news-banner-link {" +
+    "  color: #ffffff !important; text-decoration: underline !important;" +
+    "  font-weight: 500 !important; white-space: nowrap !important; flex-shrink: 0 !important;" +
+    "  padding: 6px 12px !important; border-radius: 8px !important;" +
+    "  background: rgba(255, 255, 255, 0.15) !important;" +
+    "  transition: background 0.15s !important;" +
+    "}" +
+    ".np-news-banner-link:hover {" +
+    "  background: rgba(255, 255, 255, 0.25) !important; text-decoration: none !important;" +
+    "}" +
+    ".np-news-banner-close {" +
+    "  background: none !important; border: none !important; color: #ffffff !important;" +
+    "  font-size: 20px !important; cursor: pointer !important; padding: 0 !important;" +
+    "  line-height: 1 !important; opacity: 0.8 !important; flex-shrink: 0 !important;" +
+    "  transition: opacity 0.15s !important;" +
+    "}" +
+    ".np-news-banner-close:hover {" +
+    "  opacity: 1 !important;" +
+    "}" +
+    "@keyframes np-news-slide-in {" +
+    "  from { transform: translateY(-100%); opacity: 0; }" +
+    "  to { transform: translateY(0); opacity: 1; }" +
     "}" +
     /* ===== 加载提示条 ===== */
     ".np-loading-bar {" +
@@ -872,50 +1276,81 @@
    *   4. 逐行注入评分徽章
    */
   async function processPage() {
-    var courses = extractAllCourses();
-    if (courses.length === 0) return;
+    try {
+      var courses = extractAllCourses();
+      if (courses.length === 0) return;
 
-    // 只处理还未注入徽章的行
-    var newCourses = courses.filter(function (c) {
-      return !state.processedRows.has(c.row);
-    });
-    if (newCourses.length === 0) return;
+      // 只处理还未注入徽章的行
+      var newCourses = courses.filter(function (c) {
+        return !state.processedRows.has(c.row);
+      });
+      if (newCourses.length === 0) return;
 
-    // 显示加载提示（顶部条 + 灵动岛）
-    showLoadingBar("「南评」正在加载评论...", "loading");
-    showDynamicIsland("loading", "「南评」正在加载评论...");
+      // 显示加载提示（顶部条 + 灵动岛）
+      safeExec(function () {
+        showLoadingBar("「南评」正在加载评论...", "loading");
+        showDynamicIsland("loading", "「南评」正在加载评论...");
+      }, "显示加载提示", null);
 
-    // 批量请求 API
-    var queries = newCourses.map(function (c) {
-      return { code: c.code, teacher: c.teacher, name: c.name };
-    });
-    var response = await batchMatch(queries);
+      // 批量请求 API（带用户名）
+      var username = safeExec(extractUsername, "提取用户名", "");
+      var queries = newCourses.map(function (c) {
+        return { code: c.code, teacher: c.teacher, name: c.name };
+      });
+      var response = await batchMatch(queries, username);
 
-    // 注入徽章
-    var matchedCount = 0;
-    newCourses.forEach(function (c, i) {
-      var result = response && response.results ? response.results[i] : null;
-      injectBadge(c.row, result);
-      if (result && result.matched && result.matched.length > 0) {
-        matchedCount++;
+      // 注入徽章
+      var matchedCount = 0;
+      newCourses.forEach(function (c, i) {
+        try {
+          var result = response && response.results ? response.results[i] : null;
+          injectBadge(c.row, result);
+          if (result && result.matched && result.matched.length > 0) {
+            matchedCount++;
+          }
+        } catch (err) {
+          console.error("[Nanping] 注入徽章失败:", err);
+        }
+      });
+
+      // 灵动岛显示结果，1.5 秒后消失
+      safeExec(function () {
+        removeDynamicIsland();
+        if (response) {
+          showDynamicIsland("success", "加载成功，匹配到 " + matchedCount + " 条评价");
+        } else {
+          showDynamicIsland("error", "加载失败，请检查网络连接");
+        }
+        setTimeout(removeDynamicIsland, 1500);
+      }, "显示灵动岛", null);
+
+      // 顶部条显示完成状态，不消失
+      if (response) {
+        safeExec(function () {
+          showLoadingBar("✅ 加载成功，" + newCourses.length + " 门课程中匹配到 " + matchedCount + " 条评价", "success");
+        }, "显示成功加载条", null);
+      } else {
+        safeExec(function () {
+          showLoadingBar("⚠️ 加载失败，请检查网络连接", "error");
+        }, "显示错误加载条", null);
       }
-    });
-
-    // 灵动岛显示结果，1.5 秒后消失
-    removeDynamicIsland();
-    if (response) {
-      showDynamicIsland("success", "加载成功，匹配到 " + matchedCount + " 条评价");
-    } else {
-      showDynamicIsland("error", "加载失败，请检查网络连接");
+    } catch (err) {
+      console.error("[Nanping] processPage 出错:", err);
+      // 尝试显示错误提示
+      safeExec(function () {
+        removeDynamicIsland();
+        showDynamicIsland("error", "处理页面时出错");
+        setTimeout(removeDynamicIsland, 3000);
+      }, "显示错误提示", null);
     }
-    setTimeout(removeDynamicIsland, 1500);
+  }
 
-    // 顶部条显示完成状态，不消失
-    if (response) {
-      showLoadingBar("✅ 加载成功，" + newCourses.length + " 门课程中匹配到 " + matchedCount + " 条评价", "success");
-    } else {
-      showLoadingBar("⚠️ 加载失败，请检查网络连接", "error");
-    }
+  function escapeHtml(text) {
+    return String(text)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   /**
@@ -933,60 +1368,97 @@
   // ============================================================
 
   function init() {
-    injectStyles();
+    try {
+      injectStyles();
 
-    // 首次处理：页面可能已有静态内容，也可能还没有（JS 渲染中）
-    setTimeout(processPage, 600);
+      // 显示公告横幅（独立于课程匹配，尽早显示）
+      setTimeout(function () {
+        safeExecAsync(showNewsBanner, "显示公告横幅", null);
+      }, 300);
 
-    // ---- MutationObserver：监听动态加载 ----
-    var observer = new MutationObserver(function (mutations) {
-      for (var i = 0; i < mutations.length; i++) {
-        var mutation = mutations[i];
-        if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
-          for (var j = 0; j < mutation.addedNodes.length; j++) {
-            var node = mutation.addedNodes[j];
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              // 检测是否有课程行被添加到 DOM
-              if (
-                node.matches && node.matches("tr.course-tr") ||
-                node.querySelector && node.querySelector("tr.course-tr")
-              ) {
-                debouncedProcess();
-                return;
+      // 首次处理：页面可能已有静态内容，也可能还没有（JS 渲染中）
+      setTimeout(function () {
+        safeExec(processPage, "首次处理页面", null);
+      }, 600);
+
+      // ---- MutationObserver：监听动态加载 ----
+      var observer = new MutationObserver(function (mutations) {
+        try {
+          for (var i = 0; i < mutations.length; i++) {
+            var mutation = mutations[i];
+            if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
+              for (var j = 0; j < mutation.addedNodes.length; j++) {
+                var node = mutation.addedNodes[j];
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                  // 检测是否有课程行被添加到 DOM
+                  if (
+                    (node.matches && node.matches("tr.course-tr")) ||
+                    (node.querySelector && node.querySelector("tr.course-tr"))
+                  ) {
+                    debouncedProcess();
+                    return;
+                  }
+                }
               }
             }
           }
+        } catch (err) {
+          console.error("[Nanping] MutationObserver 处理出错:", err);
         }
-      }
-    });
+      });
 
-    // 尽量精准地观察课程容器，退而求其次观察 body
-    var target = document.querySelector(".result-container") || document.body;
-    observer.observe(target, { childList: true, subtree: true });
-
-    // ---- Tab 切换监听 ----
-    // 用户点击「专业/公共/跨专业/课表查询」时清空处理状态
-    document.addEventListener("click", function (e) {
-      var tab = e.target.closest("#cvPageHeadTab a[data-teachingclasstype]");
-      if (tab) {
-        // 清空已处理标记，等新内容渲染后重新处理
-        state.processedRows = new WeakSet();
-        setTimeout(processPage, 800);
+      // 尽量精准地观察课程容器，退而求其次观察 body
+      var target = safeQuerySelector(".result-container") || document.body;
+      if (target) {
+        observer.observe(target, { childList: true, subtree: true });
       }
-    });
 
-    // ---- 「加载更多」按钮监听 ----
-    document.addEventListener("click", function (e) {
-      if (e.target.closest(".course-table-footer")) {
-        setTimeout(processPage, 1000);
-      }
-    });
+      // ---- Tab 切换监听 ----
+      // 用户点击「专业/公共/跨专业/课表查询」时清空处理状态
+      document.addEventListener("click", function (e) {
+        try {
+          var tab = e.target.closest("#cvPageHeadTab a[data-teachingclasstype]");
+          if (tab) {
+            // 清空已处理标记，等新内容渲染后重新处理
+            state.processedRows = new WeakSet();
+            setTimeout(function () {
+              safeExec(processPage, "Tab 切换后处理", null);
+            }, 800);
+          }
+        } catch (err) {
+          console.error("[Nanping] Tab 切换监听出错:", err);
+        }
+      });
+
+      // ---- 「加载更多」按钮监听 ----
+      document.addEventListener("click", function (e) {
+        try {
+          if (e.target.closest(".course-table-footer")) {
+            setTimeout(function () {
+              safeExec(processPage, "加载更多后处理", null);
+            }, 1000);
+          }
+        } catch (err) {
+          console.error("[Nanping] 加载更多监听出错:", err);
+        }
+      });
+
+      console.log("[Nanping] 插件初始化成功");
+    } catch (err) {
+      console.error("[Nanping] 插件初始化失败:", err);
+      showFatalError("插件初始化失败，请刷新页面重试。如问题持续，请联系作者。");
+    }
   }
 
   // 启动
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
+  try {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
+  } catch (err) {
+    console.error("[Nanping] 插件启动失败:", err);
+    showFatalError("插件启动失败，请刷新页面重试。如问题持续，请联系作者。");
   }
 })();

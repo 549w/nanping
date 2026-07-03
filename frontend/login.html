@@ -61,7 +61,7 @@
 </footer>
 
 <script type="module">
-import { getQueryParam, showToast } from "./js/utils.js";
+import { getQueryParam, showToast, hashPassword } from "./js/utils.js";
 import { isLoggedIn, updateNav } from "./js/auth.js";
 import { login } from "./js/api.js";
 
@@ -107,7 +107,9 @@ form.addEventListener("submit", async (e) => {
   submitBtn.disabled = true;
   submitBtn.textContent = "登录中...";
 
-  const result = await login(email, password);
+  // 前端 SHA-256 哈希，避免明文传输
+  const hashedPassword = await hashPassword(password);
+  const result = await login(email, hashedPassword);
 
   if (result.ok) {
     showToast("登录成功", "success");

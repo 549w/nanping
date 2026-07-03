@@ -130,7 +130,43 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(Text, nullable=False, unique=True, comment="南大邮箱")
     password = Column(Text, nullable=False, comment="密码哈希")
+    is_admin = Column(Integer, nullable=False, default=0, comment="是否为管理员")
     created_at = Column(Text, nullable=False, comment="注册时间")
+
+
+class ActivityLog(Base):
+    """用户活动日志。
+
+    记录关键用户行为（登录/注册/评价/插件查询等），
+    供管理后台查询与审计。
+    """
+
+    __tablename__ = "activity_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("user.id"), nullable=True, comment="操作用户，未登录可为空")
+    action = Column(Text, nullable=False, comment="操作类型：login/register/review_create/review_delete/plugin_query 等")
+    target_type = Column(Text, nullable=True, comment="操作目标类型：course/review")
+    target_id = Column(Integer, nullable=True, comment="操作目标 ID")
+    details = Column(Text, nullable=True, comment="附加信息 JSON")
+    ip_address = Column(Text, nullable=True, comment="客户端 IP")
+    user_agent = Column(Text, nullable=True, comment="客户端 User-Agent")
+    created_at = Column(Text, nullable=False, comment="操作时间")
+
+
+class News(Base):
+    """系统公告/新闻。
+
+    管理员通过数据库或管理后台发布，插件和前端在首页展示。
+    """
+
+    __tablename__ = "news"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(Text, nullable=False, comment="标题")
+    content = Column(Text, nullable=False, comment="正文")
+    is_active = Column(Integer, nullable=False, default=1, comment="是否展示")
+    created_at = Column(Text, nullable=False, comment="发布时间")
 
 
 class Review(Base):

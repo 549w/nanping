@@ -3,6 +3,12 @@
   "name": "Nanping - 南大课程评价",
   "version": "0.1.0",
   "description": "在南京大学选课系统中增强课程信息展示，查看课程评分和评价。",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "nanping@eznju.com",
+      "strict_min_version": "112.0"
+    }
+  },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -13,7 +19,7 @@
       "matches": [
         "https://xk.nju.edu.cn/xsxkapp/sys/xsxkapp/*default/grablessons.do*"
       ],
-      "js": ["content.js"],
+      "js": ["content_dev.js"],
       "run_at": "document_end"
     }
   ],

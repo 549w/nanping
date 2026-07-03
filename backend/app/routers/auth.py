@@ -5,6 +5,7 @@ POST /auth/register   — 注册新用户
 POST /auth/login      — 登录获取 JWT
 """
 
+import logging
 import random
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
@@ -13,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..activity import log_activity
 from ..config import settings
 from ..database import get_db
 from ..limiter import limiter
@@ -24,8 +26,9 @@ from ..schemas import (
     SendCodeRequest,
     TokenResponse,
 )
-from ..auth import create_access_token, hash_password, verify_password
+from ..auth import create_access_token, hash_password, normalize_password, verify_password
 
+logger = logging.getLogger("nanping.auth")
 router = APIRouter(tags=["认证"])
 
 
@@ -83,11 +86,20 @@ async def send_code(request: Request, data: SendCodeRequest) -> MessageResponse:
     # 生成验证码
     if settings.AUTH_MOCK_MODE:
         code = settings.MOCK_VERIFICATION_CODE
-        print(f"[MOCK] 验证码 for {email}: {code}")
+        logger.info("Mock 模式发送验证码: email=%s code=%s", email, code)
     else:
         code = str(random.randint(100000, 999999))
         from ..email import send_verification_code
-        await send_verification_code(email, code)
+
+        try:
+            await send_verification_code(email, code)
+            logger.info("验证码已发送: email=%s", email)
+        except Exception as exc:
+            logger.error("验证码发送失败: email=%s error=%s", email, exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="验证码发送失败，请稍后重试",
+            ) from exc
 
     _verification_codes[email] = CodeEntry(
         code=code,
@@ -103,7 +115,7 @@ async def send_code(request: Request, data: SendCodeRequest) -> MessageResponse:
 
 
 @router.post("/auth/register", response_model=MessageResponse, status_code=201)
-async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)) -> MessageResponse:
+async def register(request: Request, data: RegisterRequest, db: AsyncSession = Depends(get_db)) -> MessageResponse:
     """注册新用户。
 
     校验验证码 → 检查邮箱唯一性 → 创建用户。
@@ -133,14 +145,19 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)) ->
             detail="该邮箱已注册",
         )
 
-    # 创建用户
+    # 创建用户（前端已 SHA-256，后端再 bcrypt）
+    normalized_pwd = normalize_password(data.password)
     user = User(
         email=data.email,
-        password=hash_password(data.password),
+        password=hash_password(normalized_pwd),
         created_at=datetime.now(timezone.utc).isoformat(),
     )
     db.add(user)
     await db.commit()
+    await db.refresh(user)
+
+    # 记录活动日志
+    await log_activity(db, request, "register", user_id=user.id)
 
     # 销毁已使用验证码
     del _verification_codes[data.email]
@@ -154,15 +171,22 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)) ->
 
 
 @router.post("/auth/login", response_model=TokenResponse)
-async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
     """用户登录，返回 JWT 令牌。"""
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
-    if not user or not verify_password(data.password, user.password):
+
+    # 前端已 SHA-256，后端验证时用相同的规范化流程
+    normalized_pwd = normalize_password(data.password)
+    if not user or not verify_password(normalized_pwd, user.password):
+        logger.warning("登录失败: email=%s", data.email)
+        await log_activity(db, request, "login_failed", details={"email": data.email})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="邮箱或密码错误",
         )
 
     token = create_access_token(user.id)
+    logger.info("登录成功: user_id=%s", user.id)
+    await log_activity(db, request, "login", user_id=user.id)
     return TokenResponse(access_token=token)

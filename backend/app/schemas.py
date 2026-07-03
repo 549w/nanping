@@ -9,6 +9,22 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 # ============================================================
+# 公告
+# ============================================================
+
+
+class NewsItem(BaseModel):
+    """公告/新闻项。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    content: str
+    created_at: str
+
+
+# ============================================================
 # 通用
 # ============================================================
 
@@ -85,6 +101,7 @@ class ReviewCreate(BaseModel):
     content: str = Field(min_length=1, max_length=5000)
     semester: str
     is_anonymous: bool = False
+    referrer: str | None = Field(default=None, description="来源标识，如 plugin_v0.1 / search / me")
 
 
 class ReviewDelete(BaseModel):
@@ -223,6 +240,7 @@ class BatchMatchRequest(BaseModel):
     """批量匹配请求 —— 插件一次性发送页面上所有课程行。"""
 
     queries: list[MatchQuery] = Field(max_length=200, description="最多 200 条")
+    username: str | None = Field(default=None, description="选课页面登录用户名，用于活动日志")
 
 
 class BatchMatchResponse(BaseModel):

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN" data-theme="light">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,99 +8,141 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;500;700;900&display=swap" />
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;500;700;900&display=swap" />
   <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
 
-<!-- NAV-START -->
-<nav class="nanping-nav">
-  <div class="nav-brand">
-    <a href="index.html">南评 Nanping</a>
-  </div>
-  <div class="nav-links" id="nav-auth-links">
-    <a href="index.html">首页</a>
-    <a href="login.html">登录</a>
-    <a href="register.html">注册</a>
-  </div>
-</nav>
-<!-- NAV-END -->
+  <!-- NAV-START -->
+  <nav class="nanping-nav">
+    <div class="nav-brand">
+      <a href="index.html">南评 Nanping</a>
+    </div>
+    <div class="nav-links" id="nav-auth-links">
+      <a href="index.html">首页</a>
+      <a href="login.html">登录</a>
+      <a href="register.html">注册</a>
+    </div>
+  </nav>
+  <!-- NAV-END -->
 
-<main class="container" style="max-width: 760px;">
+  <main class="container" style="max-width: 760px;">
 
-  <section class="download-hero">
-    <h1>浏览器插件</h1>
-    <p>安装 Nanping 浏览器插件后，在南京大学选课系统中即可一键查看课程评分和评价。</p>
-  </section>
+    <section class="download-hero">
+      <h1>浏览器插件</h1>
+      <p>安装 Nanping 浏览器插件后，在南京大学选课系统中即可一键查看课程评分和评价。</p>
+      <p>支持 MacOS / Windows 平台的</p>
+        <p> Chrome / Edge / Firefox / 360 系列浏览器 / 搜狗浏览器 / QQ 浏览器 等各种主流浏览器！</p>
+    </section>
 
-  <section class="download-section">
-    <h2>下载</h2>
-    <p>
-      <a class="download-btn" href="nanping-extension.zip">
-        <span class="material-symbols-outlined">download</span>
-        下载浏览器插件（ZIP）
-      </a>
-    </p>
-    <p style="color: #888; font-size: 0.9rem;">
-      下载后请解压，按照下方教程安装即可。
-    </p>
-  </section>
+    <section class="download-section">
+      <h2>下载</h2>
+      <p>
+        <a class="download-btn" href="nanping-extension.zip">
+          <span class="material-symbols-outlined">download</span>
+          下载 Nanping 插件 v0.1.0（ZIP）
+        </a>
+      </p>
+      <p style="color: #888; font-size: 0.9rem;">
+        下载后请解压，按照下方教程安装即可。
+      </p>
+    </section>
 
-  <section>
-    <h2>安装教程</h2>
+    <section>
+      <h2>安装教程</h2>
 
-    <h3>Chrome / Edge 浏览器</h3>
-    <ol>
-      <li>下载插件压缩包并解压到本地文件夹。</li>
-      <li>打开浏览器，在地址栏输入 <code>chrome://extensions</code>（Edge 为 <code>edge://extensions</code>）并回车。</li>
-      <li>打开右上角的<strong>「开发者模式」</strong>开关。</li>
-      <li>点击左上角<strong>「加载已解压的扩展程序」</strong>。</li>
-      <li>选择解压后的插件文件夹，确认即可完成安装。</li>
-    </ol>
-    <p style="color: #888; font-size: 0.9rem;">
-      提示：安装后建议将插件图标固定在浏览器工具栏，方便随时查看。
-    </p>
-  </section>
+      <h3>各种主流浏览器</h3>
+      <ol>
+        <li>下载插件压缩包并解压到本地文件夹。</li>
+        <li>打开浏览器，在地址栏输入 <code>chrome://extensions</code>（Edge 为 <code>edge://extensions</code>）并回车。</li>
+        <li>打开右上角的<strong>「开发者模式」</strong>开关。</li>
+        <li>点击左上角<strong>「加载已解压的扩展程序」</strong>。</li>
+        <li>选择解压后的插件文件夹，确认即可完成安装。</li>
+      </ol>
+      <p style="color: #888; font-size: 0.9rem;">
+        提示：安装后建议将插件图标固定在浏览器工具栏，方便随时查看。
+      </p>
+    </section>
 
-  <section>
-    <h2>使用方法</h2>
-    <ol>
-      <li>登录<a href="https://xk.nju.edu.cn" target="_blank">南京大学选课系统</a>。</li>
-      <li>进入选课页面后，插件会自动在每门课程旁显示评分徽章。</li>
-      <li><strong>悬停</strong>在评分上可预览最新评价摘要。</li>
-      <li><strong>点击</strong>评分可跳转到南评网站查看完整评价和撰写评价。</li>
-    </ol>
-  </section>
+    <section>
+      <h2>使用方法</h2>
+      <ol>
+        <li>登录<a href="https://xk.nju.edu.cn/xsxkapp/sys/xsxkapp/*default/index.do" target="_blank" rel="noreferrer">南京大学选课系统</a>。</li>
+        <li>进入选课页面后，插件会自动在每门课程旁显示评分、评论数、「查看评价」按钮和「写评价」按钮。</li>
+        <li><strong>点击</strong>「查看评价」可唤起侧面面板，同屏查看所有评价。</li>
+        <li><strong>点击</strong>「写评价」可跳转到南评网站查看完整评价和撰写评价。</li>
+      </ol>
+    </section>
 
-  <section>
-    <h2>常见问题</h2>
+    <section>
+      <h2>常见问题</h2>
+      <details>
+        <summary>我的浏览器里能用这个插件吗？</summary>
+        <p>所有支持 Chrome Extension Manifest V3 的浏览器均可使用，包括 Chrome、Edge、Firefox、360 系列浏览器、搜狗浏览器、QQ 浏览器 等各种主流浏览器。很遗憾不支持
+          Safari 浏览器。
+        </p>
+      </details>
 
-    <details>
-      <summary>插件不显示评分？</summary>
-      <p>请确认：1）已正确加载插件；2）当前页面为选课系统课程列表页；3）网络连接正常。如仍无法使用，请加入 QQ 群反馈。</p>
-    </details>
+      <details>
+        <summary>插件不正常工作？</summary>
+        <p>请确认：1）已正确加载插件；2）当前页面为选课系统课程列表页；3）网络连接正常。如仍无法使用，请加入 QQ 群：1048569521 反馈。</p>
+      </details>
 
-    <details>
-      <summary>如何更新插件？</summary>
-      <p>前往 GitHub Releases 下载最新版本，覆盖原有文件夹，然后在 <code>chrome://extensions</code> 中点击插件右下角的刷新按钮。</p>
-    </details>
+      <details>
+        <summary>如何更新插件？</summary>
+        <p>来到此页面下载最新版本，覆盖原有文件夹，然后在 <code>chrome://extensions</code>（Edge 为
+          <code>edge://extensions</code>）中点击插件右下角的刷新按钮。或者按照安装教程重新安装一遍。
+        </p>
+      </details>
+    </section>
 
-    <details>
-      <summary>支持哪些浏览器？</summary>
-      <p>所有支持 Chrome Extension Manifest V3 的浏览器均可使用，包括 Chrome、Edge、Arc、Brave 等。</p>
-    </details>
-  </section>
+    <section>
+      <h2>隐私与安全</h2>
+      <p>「南评」非常重视你的隐私和账号安全。下面用通俗易懂的语言，说明插件做了什么、<strong>不</strong>做什么。</p>
 
-</main>
+      <h4>插件会读取什么？</h4>
+      <ul>
+        <li>✅ 登录后选课页面上<strong>公开可见的信息</strong>（如课程号、课程名、授课教师等），仅用于搜索课程评价和防止滥用。</li>
+      </ul>
 
-<footer class="nanping-footer">
-  <a href="https://beian.miit.gov.cn/" target="_blank">苏ICP备2026015844号-3</a>
-</footer>
+      <h4>插件<strong>绝对不会</strong>做什么？</h4>
+      <ul>
+        <li>❌ 不读取你的<strong>密码</strong>。 </li>
+        <li>❌ 不记录你的<strong>键盘输入</strong>。</li>
+        <li>❌ 不进行<strong>选课操作</strong>（不会自动点击 / 修改选课结果等）。 本插件<strong>不是抢课插件，不与官方选课服务器建立任何通信，完全不会影响选课秩序，也不会损害你和其他学生的正常选课权益。</strong> </li>
+        <li>❌ 不读取你的<strong>Cookie</strong> 或浏览器存储数据。</li>
+        <li>❌ 不向任何<strong>第三方</strong>发送数据，所有通信仅发生在你的浏览器和南评服务器（npapi.eznju.com）之间。</li>
+      </ul>
 
-<script type="module">
-import { updateNav } from "./js/auth.js";
-updateNav();
-</script>
+      <h4>代码公开可查</h4>
+      <p>本插件，包括「南评」前后端 的全部代码在 <a href="https://github.com/549w/nanping" target="_blank">GitHub</a> 上开源。
+      插件核心逻辑就在 <code>content_dev.js</code> 一个文件里，任何人（包括你自己）都能打开查看每一行代码，确认没有任何隐藏行为。</p>
+
+      <h4>权限说明</h4>
+      <p>浏览器安装插件时会显示两条权限声明，可能会引发你的顾虑。下面说明这两个权限的实际含义：</p>
+      <ul>
+        <li>
+          「访问 xk.nju.edu.cn」—— 插件<strong>不会向教务系统服务器发送任何请求。</strong> 这个权限的实际含义是「允许插件在选课网页上显示内容」。插件仅读取页面上已经显示的课程信息，在自身渲染的侧边面板里展示评价数据。
+        </li>
+        <li>
+          「访问 npapi.eznju.com」—— 插件把页面上读取到的课程信息（课程号、课程名、教师等）发送给「南评」服务器，获取对应的评价和评分。这是插件<strong>唯一通信的外部地址</strong>。
+        </li>
+      </ul>
+    </section>
+
+  </main>
+
+  <footer class="nanping-footer">
+    <a href="https://beian.miit.gov.cn/" target="_blank">苏ICP备2026015844号-3</a>
+  </footer>
+
+  <script type="module">
+    import { updateNav } from "./js/auth.js";
+    updateNav();
+  </script>
 
 </body>
+
 </html>

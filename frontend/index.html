@@ -32,17 +32,25 @@
     <p>NJU 一站式选课助手。搜索课程，以查看评价或撰写评价。</p>
   </section>
 
+  <!-- 插件推广贴纸 -->
+  <div class="extension-sticker">
+    <span class="material-symbols-outlined">extension</span>
+    <div class="sticker-content">
+      <strong>最佳体验：</strong><a href="download.html">安装浏览器插件</a>，在选课页面一键查看评分与评价
+    </div>
+    <a class="sticker-btn" href="download.html">立即安装</a>
+  </div>
+
   <!-- 搜索表单 -->
   <section class="search-section">
-    <p class="extension-hint">最佳体验：<a href="download.html">点击下载浏览器插件</a>，在选课页面一键查看评论</p>
     <p class="info-links">
       <a href="https://github.com/549w/nanping" target="_blank">项目主页</a>
-      &nbsp;·&nbsp; QQ 群：<strong>1048569521</strong>，反馈问题 / 参与测试 / 交流设计和技术等
+      &nbsp;·&nbsp; QQ 群：<strong>1048569521</strong>，畅所欲言 / 反馈问题 / 参与测试 / 交流设计和技术等 
     </p>
     <form id="search-form" autocomplete="off">
-      <input type="text" name="code" placeholder="课程号，如 00010" aria-label="课程号">
-      <input type="text" name="name" placeholder="课程名称" aria-label="课程名称">
-      <input type="text" name="teacher" placeholder="授课教师" aria-label="授课教师">
+      <input type="text" name="code" placeholder="课程号（可选），如 25000700" aria-label="课程号">
+      <input type="text" name="name" placeholder="课程名称（可选）" aria-label="课程名称">
+      <input type="text" name="teacher" placeholder="授课教师（可选）" aria-label="授课教师">
       <button type="submit">搜索</button>
     </form>
   </section>
@@ -86,7 +94,7 @@ searchForm.addEventListener("submit", async (e) => {
 
   // 客户端校验：至少一个搜索条件
   if (!code && !name && !teacher) {
-    showToast("请至少填写一个搜索条件", "error");
+    showToast("至少填写一个搜索条件，才能搜索哦。", "error");
     return;
   }
 
@@ -121,7 +129,7 @@ async function doSearch() {
     resultsSection.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon"><span class="material-symbols-outlined">warning</span></div>
-        <p>${escapeHtml(result.error || "搜索失败，请重试")}</p>
+        <p>${escapeHtml(result.error || "搜索失败，请重试。如果问题持续存在，请联系作者。")}</p>
       </div>
     `;
     showToast(result.error || "搜索失败", "error");
@@ -185,7 +193,7 @@ function renderResults(data) {
     const clickHandler = () => {
       const courseData = JSON.parse(card.dataset.course);
       sessionStorage.setItem(`course_${courseData.id}`, JSON.stringify(courseData));
-      window.location.href = `course.html?id=${courseData.id}`;
+      window.location.href = `course.html?from=search&id=${courseData.id}`;
     };
     card.addEventListener("click", clickHandler);
     card.addEventListener("keydown", (e) => {

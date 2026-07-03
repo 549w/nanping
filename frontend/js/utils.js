@@ -4,6 +4,20 @@
    ============================================================ */
 
 /**
+ * 密码哈希（SHA-256）。
+ * 在前端加密密码，避免明文传输。
+ * @param {string} password - 明文密码
+ * @returns {Promise<string>} SHA-256 哈希值（hex 格式）
+ */
+export async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
  * 转义 HTML 特殊字符，防止 XSS。
  * @param {string} str - 原始字符串
  * @returns {string} 转义后的安全字符串
@@ -150,3 +164,14 @@ export function setButtonLoading(button, isLoading) {
     button.textContent = button.dataset.originalText || button.textContent;
   }
 }
+
+
+// ---- 全局错误捕获 ----
+
+window.addEventListener("error", function (event) {
+  console.error("[Nanping] 未捕获错误:", event.message, event.filename, event.lineno, event.error);
+});
+
+window.addEventListener("unhandledrejection", function (event) {
+  console.error("[Nanping] 未处理的 Promise 拒绝:", event.reason);
+});

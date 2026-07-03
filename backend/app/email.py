@@ -35,7 +35,7 @@ async def send_email(to: str, subject: str, html: str) -> None:
             },
         )
     except Exception as exc:
-        raise RuntimeError(f"邮件发送失败: {exc}") from exc
+        raise RuntimeError(f"邮件发送失败 (to={to}): {exc}") from exc
 
 
 async def send_verification_code(email: str, code: str) -> None:

@@ -3,30 +3,37 @@
 组装 FastAPI 应用，注册中间件、路由和生命周期事件。
 """
 
-from pathlib import Path
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.sessions import SessionMiddleware
 
+from .admin import create_admin
 from .config import settings
 from .database import engine, Base
 from .limiter import limiter
-from .routers import auth, courses, review
+from .logging_config import setup_logging
+from .middleware import RequestLoggingMiddleware, global_exception_handler
+from .migrate import run_migrations
+from .routers import auth, courses, news, review
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期。
 
-    startup: 创建数据库表（如不存在）
+    startup: 初始化日志系统，创建数据库表（如不存在）
     shutdown: 关闭数据库连接池
     """
+    setup_logging(settings.LOG_LEVEL)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # 执行列迁移（旧数据库兼容新代码）
+        await run_migrations(conn)
     yield
     await engine.dispose()
 
@@ -37,6 +44,22 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# ---- 强制 HTTPS scheme（nginx 代理后 Fix） ----
+class ForceHttpsMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.headers.get("X-Forwarded-Proto") == "https":
+            request.scope["scheme"] = "https"
+        response = await call_next(request)
+        return response
+
+app.add_middleware(ForceHttpsMiddleware)
+
+# ---- Session（SQLAdmin 认证需要） ----
+app.add_middleware(SessionMiddleware, secret_key=settings.ADMIN_SECRET_KEY)
+
+# ---- 请求日志中间件 ----
+app.add_middleware(RequestLoggingMiddleware)
 
 # ---- CORS ----
 app.add_middleware(
@@ -51,14 +74,16 @@ app.add_middleware(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ---- 静态文件（插件热更新开发用） ----
-_ext_dir = Path(__file__).resolve().parent.parent.parent / "extension"
-if _ext_dir.exists():
-    app.mount("/extension", StaticFiles(directory=str(_ext_dir), html=False), name="extension")
+# ---- 全局异常处理 ----
+app.add_exception_handler(Exception, global_exception_handler)
+
+# ---- 管理后台 ----
+create_admin(app, engine)
 
 # ---- 路由注册 ----
 app.include_router(auth.router)
 app.include_router(courses.router)
+app.include_router(news.router)
 app.include_router(review.router)
 
 

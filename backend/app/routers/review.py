@@ -6,12 +6,14 @@ DELETE /review/delete  — 软删除评价（需登录，仅限自己的）
 GET    /review/me      — 查看当前用户的全部评价（需登录）
 """
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..activity import log_activity
 from ..auth import get_current_user
 from ..database import get_db
 from ..limiter import limiter
@@ -25,6 +27,7 @@ from ..schemas import (
 )
 from .courses import _shorten_semester
 
+logger = logging.getLogger("nanping.review")
 router = APIRouter(tags=["评价"])
 
 
@@ -152,6 +155,18 @@ async def create_review(
     await db.commit()
     await db.refresh(review)
 
+    # 记录活动日志
+    detail_dict: dict = {"rating": data.rating, "is_anonymous": data.is_anonymous}
+    if data.referrer:
+        detail_dict["referrer"] = data.referrer
+    await log_activity(
+        db, request, "review_create",
+        user_id=current_user.id,
+        target_type="course",
+        target_id=data.course_id,
+        details=detail_dict,
+    )
+
     return ReviewItem(
         id=review.id,
         course_id=review.course_id,
@@ -195,6 +210,14 @@ async def delete_review(
 
     review.is_deleted = 1
     await db.commit()
+
+    # 记录活动日志
+    await log_activity(
+        db, request, "review_delete",
+        user_id=current_user.id,
+        target_type="review",
+        target_id=data.review_id,
+    )
 
     return MessageResponse(message="删除成功")
 

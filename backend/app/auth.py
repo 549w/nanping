@@ -1,11 +1,13 @@
 """认证基础设施。
 
 - 密码哈希：passlib + bcrypt
+- 密码规范化：SHA-256（兼容前端已哈希和未哈希的情况）
 - JWT 令牌：PyJWT + HS256
 - 登录态依赖注入：从 Authorization: Bearer 头解析 user_id
 """
 
 from datetime import datetime, timezone, timedelta
+import hashlib
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -20,6 +22,25 @@ from .models import User
 # ---- 密码哈希 ----
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def normalize_password(password: str) -> str:
+    """对密码进行 SHA-256 规范化（兼容前端已哈希和未哈希的情况）。
+
+    如果密码已经是 64 位十六进制（SHA-256 输出），直接返回。
+    否则进行 SHA-256 哈希。
+
+    Args:
+        password: 用户输入的密码（可能是明文或 SHA-256 哈希）
+
+    Returns:
+        SHA-256 哈希后的密码
+    """
+    # 如果已经是 64 位十六进制（SHA-256 输出），直接返回
+    if len(password) == 64 and all(c in '0123456789abcdef' for c in password.lower()):
+        return password
+    # 否则进行 SHA-256 哈希
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 
 def hash_password(password: str) -> str:

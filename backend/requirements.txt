@@ -11,6 +11,12 @@ PyJWT>=2.9.0
 passlib[bcrypt]>=1.7.4
 bcrypt>=4.0.0,<5.0.0
 
+# 管理后台
+sqladmin>=0.20.0
+
+# Session
+itsdangerous>=2.1.0
+
 # 安全
 slowapi>=0.1.9
 

@@ -69,6 +69,7 @@ import { searchCourses, getCourseDetail, getReviews, addReview } from "./js/api.
 
 // ---- 初始化 ----
 const courseIdStr = getQueryParam("id");
+const sourceFrom = getQueryParam("from") || null;  // 来源追踪
 if (!courseIdStr) {
   document.getElementById("course-header-section").innerHTML = `
     <div class="empty-state">
@@ -410,6 +411,7 @@ function bindReviewForm() {
       content,
       semester,
       isAnonymous,
+      referrer: sourceFrom,
     });
 
     if (!result.ok && result.error === "UNAUTHORIZED") {

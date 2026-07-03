@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     AUTH_MOCK_MODE: bool = True
     MOCK_VERIFICATION_CODE: str = "123456"
 
+    # ---- 管理后台 ----
+    ADMIN_SECRET_KEY: str = "change-me-admin-secret"
+
+    # ---- 日志 ----
+    LOG_LEVEL: str = "INFO"
+
     # ---- Resend 邮件服务（仅 AUTH_MOCK_MODE=False 时需要） ----
     # 注册地址：https://resend.com
     # API Key 在 https://resend.com/api-keys 创建

@@ -37,7 +37,8 @@ async function request(method, path, body = null) {
       headers,
       body: body ? JSON.stringify(body) : undefined,
     });
-  } catch {
+  } catch (err) {
+    console.error("[Nanping API] 网络请求失败:", path, err);
     return { ok: false, error: "NETWORK", message: "网络连接失败，请检查网络后重试" };
   }
 
@@ -49,6 +50,7 @@ async function request(method, path, body = null) {
   }
 
   if (!response.ok) {
+    console.error("[Nanping API] 请求错误:", method, path, response.status, data);
     // 401 Unauthorized
     if (response.status === 401) {
       return { ok: false, status: 401, error: "UNAUTHORIZED" };
@@ -156,14 +158,18 @@ export async function login(email, password) {
  * 提交课程评价。
  * @param {{courseId: number, rating: number, content: string, semester?: string, isAnonymous?: boolean}} params
  */
-export async function addReview({ courseId, rating, content, semester, isAnonymous = false }) {
-  return request("POST", "/review/add", {
+export async function addReview({ courseId, rating, content, semester, isAnonymous = false, referrer = null }) {
+  const body = {
     course_id: courseId,
     rating,
     content,
     semester: semester || null,
     is_anonymous: isAnonymous,
-  });
+  };
+  if (referrer) {
+    body.referrer = referrer;
+  }
+  return request("POST", "/review/add", body);
 }
 
 /**

@@ -92,9 +92,12 @@ async def client(test_engine):
 @pytest_asyncio.fixture
 async def test_user(db_session):
     """创建一个标准测试用户。"""
+    import hashlib
+    # 模拟前端 SHA-256 哈希
+    password_hash = hashlib.sha256("password123".encode()).hexdigest()
     user = User(
         email="test@nju.edu.cn",
-        password=hash_password("password123"),
+        password=hash_password(password_hash),
         created_at="2025-01-01T00:00:00",
     )
     db_session.add(user)
@@ -106,9 +109,12 @@ async def test_user(db_session):
 @pytest_asyncio.fixture
 async def test_user2(db_session):
     """创建第二个测试用户（用于测试跨用户操作）。"""
+    import hashlib
+    # 模拟前端 SHA-256 哈希
+    password_hash = hashlib.sha256("password456".encode()).hexdigest()
     user = User(
         email="other@nju.edu.cn",
-        password=hash_password("password456"),
+        password=hash_password(password_hash),
         created_at="2025-01-01T00:00:00",
     )
     db_session.add(user)
@@ -241,9 +247,12 @@ async def test_review_deleted(db_session, test_course, test_user):
 @pytest_asyncio.fixture
 async def auth_token(client, test_user):
     """为 test_user 获取 JWT 令牌。"""
+    import hashlib
+    # 模拟前端 SHA-256 哈希
+    password_hash = hashlib.sha256("password123".encode()).hexdigest()
     response = await client.post(
         "/auth/login",
-        json={"email": "test@nju.edu.cn", "password": "password123"},
+        json={"email": "test@nju.edu.cn", "password": password_hash},
     )
     assert response.status_code == 200
     return response.json()["access_token"]
@@ -258,9 +267,12 @@ async def auth_headers(auth_token):
 @pytest_asyncio.fixture
 async def auth_headers_user2(client, test_user2):
     """为 test_user2 获取 Authorization 头字典。"""
+    import hashlib
+    # 模拟前端 SHA-256 哈希
+    password_hash = hashlib.sha256("password456".encode()).hexdigest()
     response = await client.post(
         "/auth/login",
-        json={"email": "other@nju.edu.cn", "password": "password456"},
+        json={"email": "other@nju.edu.cn", "password": password_hash},
     )
     assert response.status_code == 200
     token = response.json()["access_token"]

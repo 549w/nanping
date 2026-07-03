@@ -185,9 +185,12 @@ class TestLogin:
     @pytest.mark.asyncio
     async def test_login_success(self, client, test_user):
         """正确凭据登录应返回 JWT token。"""
+        import hashlib
+        # 前端会对密码进行 SHA-256 哈希
+        password_hash = hashlib.sha256("password123".encode()).hexdigest()
         response = await client.post(
             "/auth/login",
-            json={"email": "test@nju.edu.cn", "password": "password123"},
+            json={"email": "test@nju.edu.cn", "password": password_hash},
         )
         assert response.status_code == 200
         data = response.json()
