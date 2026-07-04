@@ -189,3 +189,6 @@ class Review(Base):
     source = Column(Text, nullable=False, default="native", comment="来源：native 或导入文件名")
     ai_rated = Column(Integer, nullable=False, default=0, comment="是否由 AI 评分：0=否（用户自行评分），1=是（AI 评分）")
     created_at = Column(Text, nullable=False, comment="提交时间")
+
+    # 关联
+    course = relationship("Course", backref="reviews")

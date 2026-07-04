@@ -29,6 +29,14 @@ from sqlalchemy import Column, Integer, Text, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
+
+# ---------- 工具 ----------
+
+
+def __print(*args, **kwargs):
+    """带自动刷新的 print，确保容器环境实时输出。"""
+    print(*args, flush=True, **kwargs)  # noqa: T201
+
 # ---------- 配置 ----------
 
 DB_PATH = "data/nanping.db"
@@ -91,11 +99,11 @@ async def _ensure_ai_rated_column():
         result = await conn.execute(sa.text("PRAGMA table_info(review)"))
         columns = [row[1] for row in result.fetchall()]
         if "ai_rated" not in columns:
-            print("[迁移] 添加 review.ai_rated 列...")
+            _print("[迁移] 添加 review.ai_rated 列...")
             await conn.execute(
                 sa.text("ALTER TABLE review ADD COLUMN ai_rated INTEGER DEFAULT 0")
             )
-            print("[迁移] 完成。")
+            _print("[迁移] 完成。")
 
 
 def _now() -> str:
@@ -205,7 +213,7 @@ async def rate_review(
                     raw = (reasoning or "").strip()
 
             if not raw:
-                print(f"  [WARN] API 返回空内容（模型可能是推理模型？尝试用 deepseek-chat 而非 deepseek-reasoner）")
+                _print(f"  [WARN] API 返回空内容（模型可能是推理模型？尝试用 deepseek-chat 而非 deepseek-reasoner）")
                 return None, prompt_tokens, completion_tokens, cached_tokens
 
             match = re.search(r"[1-5]", raw)
@@ -214,11 +222,11 @@ async def rate_review(
                 return rating, prompt_tokens, completion_tokens, cached_tokens
 
             # LLM 返回了内容但没有有效数字
-            print(f"  [WARN] 无法从回复中提取评分: \"{raw[:80]}\"")
+            _print(f"  [WARN] 无法从回复中提取评分: \"{raw[:80]}\"")
             return None, prompt_tokens, completion_tokens, cached_tokens
 
         except Exception as e:
-            print(f"  [ERROR] API 调用失败 (第 {attempt + 1}/{max_retries} 次): {e}")
+            _print(f"  [ERROR] API 调用失败 (第 {attempt + 1}/{max_retries} 次): {e}")
             if attempt < max_retries - 1:
                 wait = 2**attempt
                 await asyncio.sleep(wait)
@@ -231,14 +239,14 @@ async def main():
 
     config = _load_config()
 
-    print("=" * 60)
-    print("Nanping AI 评分脚本")
-    print(f"  模型:     {config['model']}")
-    print(f"  API:      {config['base_url']}")
-    print(f"  调用间隔: {config['delay_seconds']}s")
-    print(f"  最大重试: {config['max_retries']} 次")
-    print("=" * 60)
-    print()
+    _print("=" * 60)
+    _print("Nanping AI 评分脚本")
+    _print(f"  模型:     {config['model']}")
+    _print(f"  API:      {config['base_url']}")
+    _print(f"  调用间隔: {config['delay_seconds']}s")
+    _print(f"  最大重试: {config['max_retries']} 次")
+    _print("=" * 60)
+    _print()
 
     client = AsyncOpenAI(
         api_key=config["api_key"],
@@ -255,10 +263,10 @@ async def main():
         )
         reviews = result.scalars().all()
 
-    print(f"待评分评价: {len(reviews)} 条\n")
+    _print(f"待评分评价: {len(reviews)} 条\n")
 
     if not reviews:
-        print("没有需要评分的评价。")
+        _print("没有需要评分的评价。")
         return
 
     total_prompt_tokens = 0
@@ -290,7 +298,7 @@ async def main():
                 await session.commit()
 
             rated_count += 1
-            print(
+            _print(
                 f"[{i}/{len(reviews)}] ID={review.id:>5} | "
                 f"评分={rating} | "
                 f"{_tokens_str(prompt_tok, comp_tok, cached_tok)} | "
@@ -300,7 +308,7 @@ async def main():
             failed_count += 1
             if prompt_tok == 0 and comp_tok == 0:
                 skipped_short += 1
-            print(
+            _print(
                 f"[{i}/{len(reviews)}] ID={review.id:>5} | "
                 f"FAILED | "
                 f"\"{preview}\""
@@ -312,26 +320,26 @@ async def main():
 
     # ---- 最终报告 ----
     total_all = total_prompt_tokens + total_completion_tokens
-    print()
-    print("=" * 60)
-    print("评分完成！")
-    print(f"  总计:               {len(reviews):>6} 条")
-    print(f"  成功:               {rated_count:>6} 条")
-    print(f"  失败:               {failed_count:>6} 条")
+    _print()
+    _print("=" * 60)
+    _print("评分完成！")
+    _print(f"  总计:               {len(reviews):>6} 条")
+    _print(f"  成功:               {rated_count:>6} 条")
+    _print(f"  失败:               {failed_count:>6} 条")
     if skipped_short > 0:
-        print(f"    (其中 {skipped_short} 条因内容过短自动给 3 分)")
-    print(f"  累计 prompt tokens:     {total_prompt_tokens:>10}")
-    print(f"  累计 completion tokens: {total_completion_tokens:>10}")
+        _print(f"    (其中 {skipped_short} 条因内容过短自动给 3 分)")
+    _print(f"  累计 prompt tokens:     {total_prompt_tokens:>10}")
+    _print(f"  累计 completion tokens: {total_completion_tokens:>10}")
     if total_cached_tokens > 0:
-        print(f"  累计 cache hit tokens:  {total_cached_tokens:>10}")
-    print(f"  累计 total tokens:      {total_all:>10}")
-    print("=" * 60)
+        _print(f"  累计 cache hit tokens:  {total_cached_tokens:>10}")
+    _print(f"  累计 total tokens:      {total_all:>10}")
+    _print("=" * 60)
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n已中断。已评分的评价已保存到数据库。")
+        _print("\n已中断。已评分的评价已保存到数据库。")
     except RuntimeError as e:
-        print(f"\n配置错误: {e}")
+        _print(f"\n配置错误: {e}")

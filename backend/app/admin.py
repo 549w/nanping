@@ -148,9 +148,9 @@ class ReviewAdmin(ModelView, model=Review):
     name = "评价"
     name_plural = "评价管理"
     icon = "fa-solid fa-star"
-    column_list = [Review.id, Review.course_id, Review.user_id, Review.rating, Review.semester, Review.is_anonymous, Review.is_deleted, Review.source, Review.created_at]
-    column_searchable_list = [Review.content]
-    column_sortable_list = [Review.id, Review.rating, Review.created_at]
+    column_list = [Review.id, Review.course, Review.content, Review.user_id, Review.rating, Review.ai_rated, Review.semester, Review.is_anonymous, Review.is_deleted, Review.source, Review.created_at]
+    column_searchable_list = [Review.content, "course.name", "course.code"]
+    column_sortable_list = [Review.id, Review.rating, Review.ai_rated, Review.created_at]
     form_excluded_columns = [Review.created_at]
 
     async def insert_model(self, request: Request, data: dict) -> Any:
