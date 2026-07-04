@@ -185,7 +185,7 @@ function renderResults(data) {
         </div>
         ${course.semesters?.length ? `<div class="card-semester">最近开课：${escapeHtml(course.semesters[0])}</div>` : ""}
         <div class="card-footer">
-          <span>${renderStars(course.avg_rating)}</span>
+          <span>${renderStars(course.avg_rating)} <span class="rating-score">${course.avg_rating != null ? course.avg_rating.toFixed(2) : '-'}</span></span>
           <span class="review-count">${course.review_count} 条评价</span>
         </div>
       </div>`;

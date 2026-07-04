@@ -322,9 +322,17 @@ code, pre, kbd, samp, .card-code, .header-code {
   font-size: 0.82rem;
 }
 
+.course-card .card-footer .rating-score {
+  font-weight: 700;
+  color: var(--nanping-primary);
+  font-size: 0.92rem;
+  margin-left: 0.25rem;
+}
+
 .course-card .card-footer .review-count {
-  color: #888;
-  font-size: 0.78rem;
+  color: var(--nanping-primary);
+  font-weight: 600;
+  font-size: 0.85rem;
 }
 
 /* ---- 课程详情头部 ---- */
