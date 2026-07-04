@@ -33,7 +33,7 @@ from sqlalchemy.orm import DeclarativeBase
 # ---------- 工具 ----------
 
 
-def __print(*args, **kwargs):
+def _print(*args, **kwargs):
     """带自动刷新的 print，确保容器环境实时输出。"""
     print(*args, flush=True, **kwargs)  # noqa: T201
 
