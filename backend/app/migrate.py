@@ -12,6 +12,7 @@ logger = logging.getLogger("nanping.migrate")
 MIGRATIONS = [
     # (表名, 列名, 列定义)
     ("user", "is_admin", "INTEGER DEFAULT 0"),
+    ("review", "ai_rated", "INTEGER DEFAULT 0"),
 ]
 
 

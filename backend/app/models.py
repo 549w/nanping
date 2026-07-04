@@ -187,4 +187,5 @@ class Review(Base):
     is_anonymous = Column(Integer, nullable=False, default=0, comment="展示时是否匿名")
     is_deleted = Column(Integer, nullable=False, default=0, comment="软删除标记")
     source = Column(Text, nullable=False, default="native", comment="来源：native 或导入文件名")
+    ai_rated = Column(Integer, nullable=False, default=0, comment="是否由 AI 评分：0=否（用户自行评分），1=是（AI 评分）")
     created_at = Column(Text, nullable=False, comment="提交时间")
