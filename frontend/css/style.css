@@ -8,7 +8,7 @@
   src: url("../fonts/material-symbols-outlined.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
-  font-display: block;
+  font-display: block; /* 图标字体：加载期间不显示 fallback 文字，避免闪过乱码 */
 }
 
 /* ---- CSS 变量覆盖 ---- */
