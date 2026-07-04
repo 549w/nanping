@@ -34,7 +34,7 @@
 
   <!-- 插件推广贴纸 -->
   <div class="extension-sticker">
-    <span class="material-symbols-outlined">extension</span>
+    <span class="material-symbols-outlined">&#xE87B;</span>
     <div class="sticker-content">
       <strong>最佳体验：</strong><a href="/download">安装浏览器插件</a>，在选课页面一键查看评分与评价。效果示例如下
     </div>
@@ -62,7 +62,7 @@
   <!-- 搜索结果 -->
   <section id="results-section">
     <div class="empty-state" id="initial-state">
-      <div class="empty-icon"><span class="material-symbols-outlined">search</span></div>
+      <div class="empty-icon"><span class="material-symbols-outlined">&#xEF7A;</span></div>
       <p>请输入搜索条件开始搜索课程</p>
     </div>
   </section>
@@ -136,7 +136,7 @@ async function doSearch() {
   if (!result.ok) {
     resultsSection.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon"><span class="material-symbols-outlined">warning</span></div>
+        <div class="empty-icon"><span class="material-symbols-outlined">&#xF083;</span></div>
         <p>${escapeHtml(result.error || "搜索失败，请重试。如果问题持续存在，请联系作者。")}</p>
       </div>
     `;
@@ -154,7 +154,7 @@ function renderResults(data) {
   if (items.length === 0) {
     resultsSection.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon"><span class="material-symbols-outlined">sentiment_dissatisfied</span></div>
+        <div class="empty-icon"><span class="material-symbols-outlined">&#xE811;</span></div>
         <p>未找到相关课程，请尝试其他搜索条件</p>
       </div>
     `;

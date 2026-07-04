@@ -79,7 +79,7 @@ async function loadMyReviews() {
   if (!result.ok) {
     section.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon"><span class="material-symbols-outlined">warning</span></div>
+        <div class="empty-icon"><span class="material-symbols-outlined">&#xF083;</span></div>
         <p>加载失败：${escapeHtml(result.error || "请重试")}</p>
       </div>`;
     return;
@@ -95,7 +95,7 @@ function renderReviews(data) {
   if (items.length === 0) {
     section.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon"><span class="material-symbols-outlined">rate_review</span></div>
+        <div class="empty-icon"><span class="material-symbols-outlined">&#xE560;</span></div>
         <p>你还没有发表过评价</p>
         <p><a href="/">去搜索课程，留下你的第一条评价吧</a></p>
       </div>`;
