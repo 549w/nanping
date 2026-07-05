@@ -6,6 +6,7 @@ POST /plugin — 后端全控渲染。
 
 import html as html_mod
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -126,7 +127,6 @@ def _render_review_item(r) -> str:
     time_str = ""
     if r.created_at:
         try:
-            from datetime import datetime
             dt = datetime.fromisoformat(str(r.created_at).replace("Z", "+00:00"))
             time_str = dt.strftime("%Y-%m-%d")
         except (ValueError, TypeError):
@@ -136,7 +136,7 @@ def _render_review_item(r) -> str:
     semester = _esc(getattr(r, "semester", None) or "")
 
     return (
-        '<div class="np-review-item">'
+        f'<div class="np-review-item" data-review-id="{r.id}">'
         f'  <div class="np-review-header">'
         f'    <span class="np-review-author">{_esc(author)}</span>'
         f"    {rating_html}"
@@ -150,7 +150,7 @@ def _render_review_item(r) -> str:
     )
 
 
-def _render_panel_html(one_result, api_base: str) -> str:
+def _render_panel_html(one_result) -> str:
     """渲染侧边面板内容（所有匹配课程 + 最新评价）。"""
     matched = one_result.matched if one_result else []
     if not matched:
@@ -259,9 +259,9 @@ async def plugin_endpoint(
         if result.matched:
             matched_count += 1
 
-        exact_id = result.exact_course_id if result else None
+        exact_id = result.exact_course_id
         badge_html = _render_badge_html(result, exact_id)
-        panel_html = _render_panel_html(result, "")
+        panel_html = _render_panel_html(result)
 
         course_results.append(
             PluginCourseResult(
@@ -273,7 +273,7 @@ async def plugin_endpoint(
         )
 
     # ---- 2. 最新公告 ----
-    news_items = await _get_latest_news(db, limit=3)
+    news_items = await _get_latest_news(db, limit=1)
     news_html = _render_news_html(news_items)
 
     # ---- 3. Toast 文案 ----

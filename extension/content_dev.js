@@ -167,7 +167,7 @@
     NEWS_ENDPOINT: "/news",
     DEBOUNCE_MS: 500, // 防抖间隔（避免 MutationObserver 频繁触发）
     PANEL_WIDTH: 420, // 侧边面板宽度（px）
-    TOKEN_KEY: "np_token", // localStorage key（增值服务认证预留）
+    TOKEN_KEY: "nanping_token", // localStorage key（与前端 auth.js 一致）
   };
 
   // ============================================================
@@ -286,7 +286,7 @@
 
     for (const candidate of CONFIG.API_CANDIDATES) {
       try {
-        const resp = await fetch(candidate + "/");
+        const resp = await fetchWithTimeout(candidate + "/", {}, 2000);
         if (resp.ok) {
           apiBase = candidate;
           console.log("[Nanping] API 地址:", apiBase);
@@ -551,8 +551,6 @@
 
       // 把 courseData 挂在行元素上，方便侧边面板复用
       row._npCourseData = courseData;
-
-      nameCell.appendChild(badgeRow);
 
       nameCell.appendChild(badgeRow);
     } catch (err) {
@@ -871,7 +869,7 @@
     var author = r.is_anonymous ? "匿名用户" : (r.user_email || "未知用户");
     var time = formatDate(r.created_at);
     return (
-      '<div class="np-review-item">' +
+      '<div class="np-review-item" data-review-id="' + r.id + '">' +
       '  <div class="np-review-header">' +
       '    <span class="np-review-author">' + esc(author) + '</span>' +
       (r.rating ? '<span class="np-review-rating">⭐ ' + r.rating + '</span>' : "") +
@@ -906,13 +904,20 @@
         }
 
         if (result.items.length > 0) {
-          var fragment = result.items.map(renderReviewHtml).join("");
-          this.insertAdjacentHTML("beforebegin", fragment);
+          // 去重：排除已渲染的评价
+          var existingIds = new Set();
+          this.parentElement.querySelectorAll(".np-review-item").forEach(function (el) {
+            var id = el.dataset.reviewId;
+            if (id) existingIds.add(id);
+          });
+          var newItems = result.items.filter(function (r) { return !existingIds.has(String(r.id)); });
+          if (newItems.length > 0) {
+            var fragment = newItems.map(renderReviewHtml).join("");
+            this.insertAdjacentHTML("beforebegin", fragment);
+          }
         }
 
         // 是否还有更多
-        var loaded = (nextPage + 1) * 20; // page 从 0 开始，pageSize=20
-        // 实际上 page 参数是 1-indexed，所以 loaded = nextPage * 20
         var totalLoaded = nextPage * 20;
         if (totalLoaded >= result.total || result.items.length === 0) {
           this.remove();
@@ -1048,30 +1053,13 @@
     "  display: flex !important; align-items: center !important; gap: 12px !important;" +
     "  font-size: 15px !important; font-weight: 500 !important;" +
     "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;" +
-    "  pointer-events: auto !important; user-select: none !important;" +
+    "  pointer-events: none !important; user-select: none !important;" +
     "  box-shadow: 0 8px 32px rgba(0,0,0,0.25) !important;" +
     "  animation: np-island-in 0.4s cubic-bezier(0.16,1,0.3,1) !important;" +
     "  max-width: calc(100vw - 32px) !important;" +
-    "  cursor: default !important;" +
     "}" +
     ".np-island.np-island-out {" +
     "  animation: np-island-out 0.3s ease forwards !important;" +
-    "}" +
-    ".np-island.np-collapsed {" +
-    "  padding: 10px 20px !important; gap: 0 !important;" +
-    "}" +
-    ".np-island.np-collapsed > :not(.np-island-brand):not(.np-island-toggle) {" +
-    "  display: none !important;" +
-    "}" +
-    ".np-island-toggle {" +
-    "  background: none !important; border: none !important; color: rgba(255,255,255,0.5) !important;" +
-    "  font-size: 14px !important; cursor: pointer !important; padding: 0 0 0 8px !important;" +
-    "  line-height: 1 !important; flex-shrink: 0 !important;" +
-    "  transition: color 0.15s, transform 0.3s !important;" +
-    "}" +
-    ".np-island-toggle:hover { color: #fff !important; }" +
-    ".np-collapsed .np-island-toggle {" +
-    "  transform: rotate(180deg) !important; color: rgba(255,255,255,0.7) !important;" +
     "}" +
     ".np-island-brand {" +
     "  font-family: 'Noto Serif SC', '思源宋体', 'Source Han Serif SC', serif !important;" +
@@ -1152,28 +1140,26 @@
     island.id = "np-island";
 
     var brandHtml = '<span class="np-island-brand">南评</span>';
-    var toggleHtml = '<button class="np-island-toggle" title="收起">▼</button>';
 
     if (type === "loading") {
       island.innerHTML =
-        brandHtml + '<span class="np-island-spinner"></span><span>' + text + '</span>' + toggleHtml;
+        brandHtml + '<span class="np-island-spinner"></span><span>' + text + '</span>';
     } else {
       var icon = type === "success" ? "✅" : "⚠️";
       island.innerHTML =
-        brandHtml + '<span class="np-island-icon">' + icon + '</span><span>' + text + '</span>' + toggleHtml;
+        brandHtml + '<span class="np-island-icon">' + icon + '</span><span>' + text + '</span>';
     }
+
+    // 避免遮挡官方菜单：检测页面 header 高度，灵动岛定位在 header 下方
+    var header = document.querySelector(".cv-page-header");
+    var top = 16;
+    if (header) {
+      var rect = header.getBoundingClientRect();
+      top = Math.max(16, rect.bottom + 8);
+    }
+    island.style.top = top + "px";
 
     document.body.appendChild(island);
-
-    // 点击展开/收起按钮 → 切换折叠态
-    var toggleBtn = island.querySelector(".np-island-toggle");
-    if (toggleBtn) {
-      toggleBtn.addEventListener("click", function (e) {
-        e.stopPropagation();
-        island.classList.toggle("np-collapsed");
-        toggleBtn.title = island.classList.contains("np-collapsed") ? "展开" : "收起";
-      });
-    }
   }
 
   /** 移除灵动岛（带出场动画）。 */
@@ -1216,7 +1202,7 @@
           // 在课程表上方或下方插入输入框
           var topArea = document.querySelector("article#course-main .top");
           if (topArea) {
-            var position = w.position === "after_table" ? "afterend" : "afterend";
+            var position = w.position === "before_table" ? "beforebegin" : "afterend";
             topArea.insertAdjacentHTML(position, w.html);
             // 绑定提交事件（如果提供了 endpoint）
             if (w.endpoint) {

@@ -21,6 +21,7 @@
   <div class="nav-links" id="nav-auth-links">
     <a href="/">首页</a>
     <a href="/about">关于</a>
+    <a href="/support">支持</a>
     <a href="/login">登录</a>
     <a href="/register">注册</a>
   </div>
@@ -70,21 +71,25 @@
                  autocomplete="new-password">
         </label>
         <div id="register-error" class="field-error" hidden></div>
-        <button type="submit" id="register-submit-btn">注册</button>
+
+        <p style="text-align: center; font-size: 0.85rem; color: var(--pico-muted-color); margin: 0.75rem 0 0;">
+          注册即表示同意<a href="/terms" target="_blank">《用户协议》</a>
+        </p>
+
+        <button type="submit" id="register-submit-btn" style="margin-top: 0.75rem;">注册</button>
       </div>
     </form>
 
     <p style="text-align: center; margin-top: 1rem;">
       已有账号？<a href="/login">立即登录</a>
     </p>
-    <p style="text-align: center; font-size: 0.85rem; color: var(--pico-muted-color); margin-top: 0.5rem;">
-      注册即表示您同意<a href="/terms" target="_blank">《用户协议》</a>
-    </p>
   </article>
 </main>
 
 <footer class="nanping-footer">
   <a href="/about">关于本站</a>
+  <span style="margin: 0 0.5rem; color: var(--pico-muted-color);">·</span>
+  <a href="/support">支持</a>
   <span style="margin: 0 0.5rem; color: var(--pico-muted-color);">·</span>
   <a href="/terms">用户协议</a>
   <span style="margin: 0 0.5rem; color: var(--pico-muted-color);">·</span>
@@ -119,7 +124,7 @@ let cooldownTimer = null;
 
 // ---- Step 1：发送验证码 ----
 sendCodeBtn.addEventListener("click", async () => {
-  const email = emailInput.value.trim();
+  const email = emailInput.value.trim().toLowerCase();
 
   // 客户端校验邮箱
   if (!email.endsWith("@nju.edu.cn") && !email.endsWith("@smail.nju.edu.cn")) {
@@ -174,7 +179,7 @@ const form = document.getElementById("register-form");
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const email = emailInput.value.trim();
+  const email = emailInput.value.trim().toLowerCase();
   const code = regCode.value.trim();
   const password = regPassword.value;
   const passwordConfirm = regPasswordConfirm.value;

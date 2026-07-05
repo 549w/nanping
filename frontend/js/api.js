@@ -5,7 +5,7 @@
    依赖：auth.js（令牌注入）、utils.js（工具函数）
    ============================================================ */
 
-import { getToken, isLoggedIn } from "./auth.js";
+import { getToken, isLoggedIn, setToken } from "./auth.js";
 
 /** 后端 API 基地址，部署时修改此处即可。 */
 const API_BASE = "https://npapi.eznju.com";
@@ -145,9 +145,7 @@ export async function login(email, password) {
   const result = await request("POST", "/auth/login", { email, password });
   // 登录成功时自动保存令牌
   if (result.ok && result.data?.access_token) {
-    // 先导入并保存（避免循环依赖 — auth.js 不 import api.js）
-    const { setToken: save } = await import("./auth.js");
-    save(result.data.access_token);
+    setToken(result.data.access_token);
   }
   return result;
 }

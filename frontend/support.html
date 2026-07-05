@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>支持南评 — 南评 Nanping</title>
+<link rel="preload" href="fonts/material-symbols-outlined.woff2" as="font" type="font/woff2" crossorigin>
+
+  <link rel="stylesheet" href="css/pico.classless.min.css">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="fonts/noto-sans-sc/index.css">
+<link rel="stylesheet" href="fonts/noto-serif-sc/index.css">
+</head>
+<body>
+
+<!-- NAV-START -->
+<nav class="nanping-nav">
+  <div class="nav-brand">
+    <a href="/">南评 Nanping</a>
+  </div>
+  <div class="nav-links" id="nav-auth-links">
+    <a href="/">首页</a>
+    <a href="/about">关于</a>
+    <a href="/support">支持</a>
+    <a href="/login">登录</a>
+    <a href="/register">注册</a>
+  </div>
+</nav>
+<!-- NAV-END -->
+
+<main class="container" style="max-width: 600px; margin-top: 2rem; margin-bottom: 3rem;">
+  <h1>支持「南评」</h1>
+
+  <p>南评是一个个人开发维护的非营利项目，所有功能免费开放。</p>
+  <p>如果你觉得南评对你的选课有帮助，可以考虑请作者喝杯咖啡 ☕</p>
+
+  <section style="margin-top: 2rem;">
+    <h2>赞助说明</h2>
+    <p>赞助资金将全部用于：</p>
+    <ul>
+      <li>服务器和域名续费</li>
+      <li>数据库备份存储</li>
+      <li>其他基础设施维护</li>
+    </ul>
+    <p>赞助是完全自愿的，无论是否赞助都不影响你使用南评的任何功能。</p>
+  </section>
+
+  <section style="margin-top: 2rem;">
+    <h2>请作者喝杯咖啡</h2>
+
+    <div style="
+      display: flex; flex-wrap: wrap; gap: 2rem; justify-content: center;
+      margin-top: 1.5rem;
+    ">
+      <div style="text-align: center; max-width: 220px;">
+        <div style="
+          width: 200px; height: 200px; margin: 0 auto 0.5rem;
+          border: 1px solid var(--pico-muted-border-color);
+          border-radius: 8px;
+          display: flex; align-items: center; justify-content: center;
+          color: var(--pico-muted-color); font-size: 0.85rem;
+        ">
+          微信赞赏码<br>（待上传）
+        </div>
+        <span style="font-size: 0.85rem; color: var(--pico-muted-color);">微信</span>
+      </div>
+
+      <div style="text-align: center; max-width: 220px;">
+        <div style="
+          width: 200px; height: 200px; margin: 0 auto 0.5rem;
+          border: 1px solid var(--pico-muted-border-color);
+          border-radius: 8px;
+          display: flex; align-items: center; justify-content: center;
+          color: var(--pico-muted-color); font-size: 0.85rem;
+        ">
+          支付宝收款码<br>（待上传）
+        </div>
+        <span style="font-size: 0.85rem; color: var(--pico-muted-color);">支付宝</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="margin-top: 2.5rem; text-align: center;">
+    <p style="font-family: var(--nanping-font-serif); color: var(--pico-muted-color);">
+      每一份支持都是作者继续维护的动力，感谢你 🙏
+    </p>
+  </section>
+</main>
+
+<footer class="nanping-footer">
+  <a href="/about">关于本站</a>
+  <span style="margin: 0 0.5rem; color: var(--pico-muted-color);">·</span>
+  <a href="/support">支持</a>
+  <span style="margin: 0 0.5rem; color: var(--pico-muted-color);">·</span>
+  <a href="/terms">用户协议</a>
+  <span style="margin: 0 0.5rem; color: var(--pico-muted-color);">·</span>
+  <a href="https://beian.miit.gov.cn/" target="_blank">苏ICP备2026015844号-3</a>
+</footer>
+
+<script type="module">
+import { updateNav } from "./js/auth.js";
+updateNav();
+</script>
+
+</body>
+</html>
