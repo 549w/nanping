@@ -241,10 +241,38 @@ class BatchMatchRequest(BaseModel):
 
     queries: list[MatchQuery] = Field(max_length=200, description="最多 200 条")
     username: str | None = Field(default=None, description="选课页面登录用户名，用于活动日志")
-    gender: str | None = Field(default=None, description="用户性别（male / female），用于活动日志")
+    gender: str | None = Field(default=None, description="用户头像文件名（如 men.png / women.png），用于活动日志")
 
 
 class BatchMatchResponse(BaseModel):
     """批量匹配响应。"""
 
+    results: list[MatchResult]
+
+
+# ============================================================
+# 插件统一接口
+# ============================================================
+
+
+class PluginToastConfig(BaseModel):
+    """插件提示文案配置。
+
+    服务端统一管理所有提示文案，插件端只负责渲染。
+    """
+
+    loading: str = "「南评」正在加载评论..."
+    success: str = ""
+    error: str = "加载失败，请检查网络连接"
+
+
+class PluginResponse(BaseModel):
+    """POST /plugin 统一响应。
+
+    一次请求返回插件渲染需要的全部数据：
+    匹配结果 + 最新公告 + 提示文案配置。
+    """
+
+    toast: PluginToastConfig
+    news: list[NewsItem] = []
     results: list[MatchResult]

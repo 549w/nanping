@@ -191,6 +191,10 @@
     isPanelOpen: false,
     /** 防抖计时器 ID */
     debounceTimer: null,
+    /** /plugin 响应缓存的公告列表 */
+    latestNews: null,
+    /** /plugin 响应缓存的 toast 文案配置 */
+    toastConfig: null,
   };
 
   // ============================================================
@@ -286,17 +290,16 @@
   }
 
   /**
-   * 从页面提取当前登录用户性别。
-   * 通过 user-img 的 src 判断：men.png → "male"，women.png → "female"。
-   * @returns {string} "male" / "female" / ""（未知）
+   * 从页面提取当前登录用户性别头像文件名。
+   * 通过 user-img 的 src 提取，如 "men.png" / "women.png"。
+   * @returns {string} 图片文件名，若找不到则返回空字符串
    */
   function extractUserGender() {
     var img = document.querySelector(".user-img");
     if (!img) return "";
     var src = img.getAttribute("src") || "";
-    if (/men\.png/i.test(src)) return "male";
-    if (/women\.png/i.test(src)) return "female";
-    return "";
+    var match = src.match(/([^/]+\.\w+)(?:\?|$)/);
+    return match ? match[1] : "";
   }
 
   /**
@@ -416,7 +419,50 @@
   }
 
   /**
+   * 统一插件数据请求（万能接口）。
+   * 一次 POST /plugin 获取匹配结果、公告和提示配置。
+   *
+   * @param {Array<{code: string, teacher: string, name: string}>} queries
+   * @param {string} username
+   * @param {string} gender
+   * @returns {Promise<{toast: object, news: Array, results: Array}|null>}
+   */
+  async function fetchPluginData(queries, username, gender) {
+    var base = await getApiBase();
+    if (!base) return null;
+
+    var body = { queries: queries };
+    if (username) body.username = username;
+    if (gender) body.gender = gender;
+
+    try {
+      var resp = await fetchWithTimeout(base + "/plugin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }, 15000);
+
+      if (!resp.ok) {
+        console.warn("[Nanping] 插件 API 返回非 200:", resp.status);
+        return null;
+      }
+
+      var data = await resp.json();
+      if (!data || !Array.isArray(data.results)) {
+        console.warn("[Nanping] 插件 API 返回数据格式错误:", data);
+        return null;
+      }
+
+      return data;
+    } catch (err) {
+      console.error("[Nanping] 插件 API 请求失败:", err);
+      return null;
+    }
+  }
+
+  /**
    * 获取最新公告（供侧边面板使用）。
+   * 优先使用缓存的 /plugin 响应，回退到单独请求。
    * @returns {Promise<{title: string, content: string}|null>}
    */
   async function getLatestNews() {
@@ -791,8 +837,10 @@
       state.isPanelOpen = true;
       document.body.style.overflow = "hidden";
 
-      // 拉取最新公告
-      var news = await getLatestNews();
+      // 优先用 /plugin 缓存的公告，回退到单独请求
+      var news = (state.latestNews && state.latestNews.length > 0)
+        ? state.latestNews[0]
+        : await getLatestNews();
 
       // 渲染内容
       renderPanelContent(matchResult, news);
@@ -1253,20 +1301,23 @@
       });
       if (newCourses.length === 0) return;
 
-      // 显示加载提示（灵动岛，fixed 定位不挤压页面）
+      // 显示加载提示（优先用缓存 toast 配置，否则硬编码兜底）
       safeExec(function () {
-        showDynamicIsland("loading", "「南评」正在加载评论...");
+        var loadingText = (state.toastConfig && state.toastConfig.loading)
+          ? state.toastConfig.loading
+          : "「南评」正在加载评论...";
+        showDynamicIsland("loading", loadingText);
       }, "显示加载提示", null);
 
-      // 批量请求 API（带用户名和性别）
+      // 统一请求 /plugin（替代原来的 batchMatch + 异步 fetchNews）
       var username = safeExec(extractUsername, "提取用户名", "");
       var gender = safeExec(extractUserGender, "提取性别", "");
       var queries = newCourses.map(function (c) {
         return { code: c.code, teacher: c.teacher, name: c.name };
       });
-      var response = await batchMatch(queries, username, gender);
+      var response = await fetchPluginData(queries, username, gender);
 
-      // 注入徽章
+      // 注入徽章（逻辑不变）
       var matchedCount = 0;
       newCourses.forEach(function (c, i) {
         try {
@@ -1280,22 +1331,35 @@
         }
       });
 
-      // 灵动岛显示结果，1.5 秒后消失
+      // 缓存 news 和 toast 配置
+      if (response) {
+        state.latestNews = response.news || [];
+        state.toastConfig = response.toast || null;
+      }
+
+      // toast 文案优先取响应配置，无缓存时回退硬编码
       safeExec(function () {
         removeDynamicIsland();
-        if (response) {
+        if (response && state.toastConfig) {
+          showDynamicIsland("success", state.toastConfig.success);
+        } else if (response) {
           showDynamicIsland("success", "加载成功，匹配到 " + matchedCount + " 条评价");
         } else {
-          showDynamicIsland("error", "加载失败，请检查网络连接");
+          var errorMsg = (state.toastConfig && state.toastConfig.error)
+            ? state.toastConfig.error
+            : "加载失败，请检查网络连接";
+          showDynamicIsland("error", errorMsg);
         }
         setTimeout(removeDynamicIsland, 1500);
       }, "显示灵动岛", null);
     } catch (err) {
       console.error("[Nanping] processPage 出错:", err);
-      // 尝试显示错误提示
       safeExec(function () {
         removeDynamicIsland();
-        showDynamicIsland("error", "处理页面时出错");
+        var errorMsg = (state.toastConfig && state.toastConfig.error)
+          ? state.toastConfig.error
+          : "处理页面时出错";
+        showDynamicIsland("error", errorMsg);
         setTimeout(removeDynamicIsland, 3000);
       }, "显示错误提示", null);
     }

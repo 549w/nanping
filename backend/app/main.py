@@ -19,7 +19,7 @@ from .limiter import limiter
 from .logging_config import setup_logging
 from .middleware import RequestLoggingMiddleware, global_exception_handler
 from .migrate import run_migrations
-from .routers import auth, courses, news, review
+from .routers import auth, courses, news, plugin, review
 
 
 @asynccontextmanager
@@ -85,6 +85,7 @@ app.include_router(auth.router)
 app.include_router(courses.router)
 app.include_router(news.router)
 app.include_router(review.router)
+app.include_router(plugin.router)
 
 
 @app.get("/", tags=["健康检查"])

@@ -14,6 +14,17 @@ from ..schemas import NewsItem
 router = APIRouter(tags=["公告"])
 
 
+async def _get_latest_news(db: AsyncSession, limit: int = 5) -> list[NewsItem]:
+    """获取最新公告（供其他路由复用的内部函数）。"""
+    result = await db.execute(
+        select(News)
+        .where(News.is_active == 1)
+        .order_by(News.created_at.desc())
+        .limit(limit)
+    )
+    return [NewsItem.model_validate(r) for r in result.scalars().all()]
+
+
 @router.get("/news", response_model=list[NewsItem])
 async def list_news(
     limit: int = Query(5, ge=1, le=20, description="返回条数"),
@@ -24,11 +35,4 @@ async def list_news(
     返回 is_active=1 的公告，按发布时间倒序。
     插件和前端首页可调用此接口展示运营通知。
     """
-    result = await db.execute(
-        select(News)
-        .where(News.is_active == 1)
-        .order_by(News.created_at.desc())
-        .limit(limit)
-    )
-    rows = result.scalars().all()
-    return [NewsItem.model_validate(r) for r in rows]
+    return await _get_latest_news(db, limit)
