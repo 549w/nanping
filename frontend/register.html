@@ -165,6 +165,8 @@ sendCodeBtn.addEventListener("click", async () => {
     sendCodeBtn.textContent = "发送验证码";
     if (result.status === 429) {
       emailError.textContent = "发送过于频繁，请 60 秒后再试";
+    } else if (result.status === 409) {
+      emailError.innerHTML = `该邮箱已注册，请<a href="/login">直接登录</a>`;
     } else if (result.error === "NETWORK") {
       emailError.textContent = "网络连接失败，请检查网络后重试";
     } else {

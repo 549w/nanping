@@ -71,16 +71,8 @@ class TestRegister:
 
     @pytest.mark.asyncio
     async def test_register_duplicate_email(self, client, test_user):
-        """重复邮箱注册应返回 409。"""
-        await client.post("/auth/send-code", json={"email": "test@nju.edu.cn"})
-        response = await client.post(
-            "/auth/register",
-            json={
-                "email": "test@nju.edu.cn",
-                "code": "123456",
-                "password": "password123",
-            },
-        )
+        """已注册邮箱在 send-code 阶段即被拦截，返回 409。"""
+        response = await client.post("/auth/send-code", json={"email": "test@nju.edu.cn"})
         assert response.status_code == 409
         assert "已注册" in response.json()["detail"]
 
@@ -113,19 +105,24 @@ class TestRegister:
         assert response.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_register_expired_code(self, client):
+    async def test_register_expired_code(self, client, db_session):
         """过期验证码应返回 400。"""
         from datetime import datetime, timezone, timedelta
 
-        from backend.app.routers.auth import _verification_codes, CodeEntry
+        from backend.app.models import VerificationCode
 
-        # 手动注入一个已过期的验证码
+        # 手动插入一个已过期的验证码
         email = "expired@nju.edu.cn"
-        _verification_codes[email] = CodeEntry(
-            code="123456",
-            expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
-            last_sent_at=datetime.now(timezone.utc) - timedelta(minutes=6),
+        now = datetime.now(timezone.utc)
+        db_session.add(
+            VerificationCode(
+                email=email,
+                code="123456",
+                expires_at=(now - timedelta(minutes=1)).isoformat(),
+                last_sent_at=(now - timedelta(minutes=6)).isoformat(),
+            )
         )
+        await db_session.commit()
 
         response = await client.post(
             "/auth/register",

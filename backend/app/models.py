@@ -192,3 +192,18 @@ class Review(Base):
 
     # 关联
     course = relationship("Course", backref="reviews")
+
+
+class VerificationCode(Base):
+    """邮箱验证码。
+
+    存储在数据库中而非进程内存，确保多 worker 部署时各进程共享。
+    每条记录以 email 为唯一键，重复发送时覆盖旧记录。
+    """
+
+    __tablename__ = "verification_code"
+
+    email = Column(Text, primary_key=True, comment="南大邮箱")
+    code = Column(Text, nullable=False, comment="6 位验证码")
+    expires_at = Column(Text, nullable=False, comment="过期时间 ISO 格式")
+    last_sent_at = Column(Text, nullable=False, comment="上次发送时间 ISO 格式")

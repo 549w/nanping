@@ -7,18 +7,17 @@ POST /auth/login      — 登录获取 JWT
 
 import logging
 import random
-from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..activity import log_activity
 from ..config import settings
 from ..database import get_db
 from ..limiter import limiter
-from ..models import User
+from ..models import User, VerificationCode
 from ..schemas import (
     LoginRequest,
     MessageResponse,
@@ -33,29 +32,25 @@ router = APIRouter(tags=["认证"])
 
 
 # ============================================================
-# 内存验证码存储
+# 验证码辅助（数据库存储，支持多 worker 共享）
 # ============================================================
 
 
-@dataclass
-class CodeEntry:
-    """一条验证码记录。"""
-
-    code: str
-    expires_at: datetime
-    last_sent_at: datetime
-
-
-# {email: CodeEntry}
-_verification_codes: dict[str, CodeEntry] = {}
+async def _get_code_entry(db: AsyncSession, email: str) -> VerificationCode | None:
+    """从数据库获取指定邮箱的验证码记录。"""
+    result = await db.execute(
+        select(VerificationCode).where(VerificationCode.email == email)
+    )
+    return result.scalar_one_or_none()
 
 
-def _purge_expired() -> None:
-    """清理过期的验证码记录，防止内存无限增长。"""
-    now = datetime.now(timezone.utc)
-    expired = [email for email, entry in _verification_codes.items() if entry.expires_at < now]
-    for email in expired:
-        del _verification_codes[email]
+async def _purge_expired_codes(db: AsyncSession) -> None:
+    """清理数据库中过期的验证码记录。"""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.execute(
+        delete(VerificationCode).where(VerificationCode.expires_at < now_iso)
+    )
+    await db.commit()
 
 
 # ============================================================
@@ -65,23 +60,39 @@ def _purge_expired() -> None:
 
 @router.post("/auth/send-code", response_model=MessageResponse)
 @limiter.limit("3/minute")
-async def send_code(request: Request, data: SendCodeRequest) -> MessageResponse:
+async def send_code(
+    request: Request, data: SendCodeRequest, db: AsyncSession = Depends(get_db)
+) -> MessageResponse:
     """发送验证码到指定邮箱。
 
     开发阶段使用 Mock 模式：验证码打印到控制台，值为固定值。
     同邮箱 60 秒内不可重复发送，验证码有效期 5 分钟。
+    验证码存储在数据库而非内存，确保多 worker 部署时各进程共享。
     """
-    _purge_expired()
     email = data.email
     now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+
+    # 清理过期验证码
+    await _purge_expired_codes(db)
+
+    # 检查邮箱是否已注册（提前拦截，避免用户白等验证码）
+    result = await db.execute(select(User).where(User.email == email))
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该邮箱已注册，请直接登录",
+        )
 
     # 60 秒冷却期检查
-    existing = _verification_codes.get(email)
-    if existing and (now - existing.last_sent_at).total_seconds() < 60:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="请在 60 秒后重新获取验证码",
-        )
+    existing = await _get_code_entry(db, email)
+    if existing:
+        last_sent = datetime.fromisoformat(existing.last_sent_at)
+        if (now - last_sent).total_seconds() < 60:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="请在 60 秒后重新获取验证码",
+            )
 
     # 生成验证码
     if settings.AUTH_MOCK_MODE:
@@ -101,11 +112,24 @@ async def send_code(request: Request, data: SendCodeRequest) -> MessageResponse:
                 detail="验证码发送失败，请稍后重试",
             ) from exc
 
-    _verification_codes[email] = CodeEntry(
-        code=code,
-        expires_at=now + timedelta(minutes=5),
-        last_sent_at=now,
-    )
+    expires_at = (now + timedelta(minutes=5)).isoformat()
+
+    # UPSERT: 存在则更新，不存在则插入
+    if existing:
+        existing.code = code
+        existing.expires_at = expires_at
+        existing.last_sent_at = now_iso
+    else:
+        db.add(
+            VerificationCode(
+                email=email,
+                code=code,
+                expires_at=expires_at,
+                last_sent_at=now_iso,
+            )
+        )
+    await db.commit()
+
     return MessageResponse(message="验证码已发送")
 
 
@@ -115,27 +139,35 @@ async def send_code(request: Request, data: SendCodeRequest) -> MessageResponse:
 
 
 @router.post("/auth/register", response_model=MessageResponse, status_code=201)
-async def register(request: Request, data: RegisterRequest, db: AsyncSession = Depends(get_db)) -> MessageResponse:
+async def register(
+    request: Request, data: RegisterRequest, db: AsyncSession = Depends(get_db)
+) -> MessageResponse:
     """注册新用户。
 
     校验验证码 → 检查邮箱唯一性 → 创建用户。
+    验证码存储在数据库，多 worker 共享。
     """
-    # 校验验证码（先检查再清理，确保 "已过期" 分支可达）
-    entry = _verification_codes.get(data.email)
-    if not entry or entry.code != data.code:
+    now = datetime.now(timezone.utc)
+
+    # 从数据库获取验证码记录
+    entry = await _get_code_entry(db, data.email)
+    if not entry:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="验证码错误或已过期",
+            detail="请先获取验证码",
         )
-    if entry.expires_at < datetime.now(timezone.utc):
-        del _verification_codes[data.email]
+    if entry.code != data.code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="验证码错误",
+        )
+    if entry.expires_at < now.isoformat():
+        await db.delete(entry)
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="验证码已过期",
         )
-
-    # 清理其他过期条目
-    _purge_expired()
 
     # 检查邮箱唯一性
     result = await db.execute(select(User).where(User.email == data.email))
@@ -150,7 +182,7 @@ async def register(request: Request, data: RegisterRequest, db: AsyncSession = D
     user = User(
         email=data.email,
         password=hash_password(normalized_pwd),
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=now.isoformat(),
     )
     db.add(user)
     await db.commit()
@@ -160,7 +192,8 @@ async def register(request: Request, data: RegisterRequest, db: AsyncSession = D
     await log_activity(db, request, "register", user_id=user.id)
 
     # 销毁已使用验证码
-    del _verification_codes[data.email]
+    await db.delete(entry)
+    await db.commit()
 
     return MessageResponse(message="注册成功")
 
