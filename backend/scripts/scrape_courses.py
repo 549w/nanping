@@ -1,9 +1,10 @@
 """教务系统课程抓取脚本。
 
-从 ehallapp.nju.edu.cn 抓取全部课程信息，含教学班粒度数据。
+从 ehallapp.nju.edu.cn 抓取指定学年学期的课程信息，含教学班粒度数据。
 用法：
     1. 在 backend/.env 中填写 OFFICIAL_COOKIES
-    2. python backend/scripts/scrape_courses.py
+    2. 修改本脚本中的 SEMESTER 常量（默认 2026-2027-1 即 2026 秋季）
+    3. python backend/scripts/scrape_courses.py
 """
 
 import os
@@ -21,13 +22,25 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 # ---------- 配置 ----------
 
-API_URL = "https://ehallapp.nju.edu.cn/jwapp/sys/kcbcx/modules/qxkcb/qxfbkccx.do"
-PAGE_SIZE = 999          # 每页条数（调大以减少请求次数）
-SLEEP_SECONDS = 1.5      # 页间休眠，降低服务器压力
-OUTPUT_DIR = "data/raw_courses"
+SEMESTER = "2026-2027-1"          # 2026-2027学年 第1学期（2026秋）
+SEMESTER_DISPLAY = "2026-2027学年 第1学期"
 
-# 查询参数（无课程名、无院系限制，仅过滤任务状态）
+API_URL = "https://ehallapp.nju.edu.cn/jwapp/sys/kcbcx/modules/qxkcb/qxfbkccx.do"
+PAGE_SIZE = 500          # 每页条数（调大以减少请求次数）
+SLEEP_SECONDS = 1.5      # 页间休眠，降低服务器压力
+OUTPUT_DIR = f"data/raw_courses_{SEMESTER}-bb"
+
+# 查询参数：限定学年学期（XNXQDM），仅过滤任务状态
 QUERY_SETTING = json.dumps([
+    {
+        "name": "XNXQDM",
+        "caption": "学年学期",
+        "linkOpt": "AND",
+        "builderList": "cbl_m_List",
+        "builder": "m_value_equal",
+        "value": SEMESTER,
+        "value_display": SEMESTER_DISPLAY,
+    },
     [
         [{"name": "RWZTDM", "value": "1", "linkOpt": "and", "builder": "equal"},
          {"name": "RWZTDM", "linkOpt": "or", "builder": "isNull"}],
@@ -95,7 +108,7 @@ def main():
     total: int = 0
     page = 1
 
-    print(f"开始抓取，每页 {PAGE_SIZE} 条...")
+    print(f"开始抓取 {SEMESTER}（{SEMESTER_DISPLAY}）课程，每页 {PAGE_SIZE} 条...")
 
     while True:
         print(f"  第 {page} 页 ...", end=" ", flush=True)
