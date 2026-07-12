@@ -27,6 +27,8 @@ from ..schemas import (
     SemesterOffering,
 )
 
+from .abbr import ABBR
+
 logger = logging.getLogger("nanping.courses")
 router = APIRouter(tags=["课程"])
 
@@ -78,7 +80,10 @@ async def search_courses(
     if code:
         conditions.append(Course.code.like(f"{code}%"))
     if name:
-        conditions.append(Course.name.like(f"%{name}%"))
+        if name in ABBR:
+            conditions.append(Course.name.like(f"%{ABBR[name]}%"))
+        else:    
+            conditions.append(Course.name.like(f"%{name}%"))
     if teacher:
         conditions.append(Course.teacher.like(f"%{teacher}%"))
 
