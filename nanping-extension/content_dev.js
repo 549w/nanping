@@ -236,20 +236,39 @@
    * @returns {object|null}
    */
   function extractCourseFromRow(row) {
-    const codeAnchor = row.querySelector(".kch .cv-jxb-detail");
+    // 专业课是课程汇总行，课程号使用 cv-view-detail；其他课程类型通常使用 cv-jxb-detail。
+    const codeAnchor = row.querySelector(".kch .cv-jxb-detail, .kch .cv-view-detail");
     const nameCell = row.querySelector(".kcmc");
-    if (!codeAnchor || !nameCell) return null;
+    if (!nameCell) return null;
 
     var getText = function (sel) {
       var el = row.querySelector(sel);
       return el ? el.textContent.trim() : "";
     };
 
+    var code = codeAnchor
+      ? (codeAnchor.getAttribute("data-number") || codeAnchor.textContent || "").trim()
+      : (row.getAttribute("data-coursenumber") || getText(".kch"));
+    if (!code) return null;
+
+    var teacher = getText(".jsmc");
+    if (!teacher) {
+      var classContainerRow = row.nextElementSibling;
+      var teacherElements = classContainerRow && classContainerRow.matches(".course-jxb-container-tr")
+        ? classContainerRow.querySelectorAll(".jxb-title")
+        : [];
+      teacher = Array.from(teacherElements)
+        .map(function (el) { return el.textContent.trim(); })
+        .filter(Boolean)
+        .filter(function (value, index, values) { return values.indexOf(value) === index; })
+        .join(",");
+    }
+
     return {
-      code: (codeAnchor.getAttribute("data-number") || codeAnchor.textContent || "").trim(),
+      code: code,
       name: nameCell.textContent.trim(),
       credits: getText(".xf"),
-      teacher: getText(".jsmc"),
+      teacher: teacher,
       schedule: getText(".sjdd"),
       campus: getText(".xq"),
       grade: getText(".nj"),
@@ -262,7 +281,10 @@
    * @returns {Array<{code, name, credits, teacher, schedule, campus, grade, department, row}>}
    */
   function extractAllCourses() {
-    const rows = document.querySelectorAll("tbody.course-body tr.course-tr");
+    var container = safeQuerySelector(".result-container");
+    const rows = container
+      ? container.querySelectorAll("tbody.course-body tr.course-tr")
+      : document.querySelectorAll("tbody.course-body tr.course-tr");
     const courses = [];
     rows.forEach((row) => {
       const info = extractCourseFromRow(row);
