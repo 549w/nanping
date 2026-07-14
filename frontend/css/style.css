@@ -424,6 +424,25 @@ code, pre, kbd, samp, .card-code, .header-code {
   color: var(--nanping-gold);
 }
 
+.course-header .header-write-btn {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.45rem 1.2rem;
+  background: var(--nanping-primary);
+  color: #fff;
+  border-radius: var(--nanping-radius);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.course-header .header-write-btn:hover {
+  background: var(--nanping-primary-hover);
+  color: #fff;
+  text-decoration: none;
+}
+
 /* ---- 评价列表网格 ---- */
 #review-list {
   display: grid;
