@@ -426,21 +426,29 @@ code, pre, kbd, samp, .card-code, .header-code {
 
 .course-header .header-write-btn {
   display: inline-block;
-  margin-top: 1rem;
-  padding: 0.45rem 1.2rem;
-  background: var(--nanping-primary);
+  margin-top: 1.2rem;
+  padding: 0.7rem 1.8rem;
+  background: linear-gradient(135deg, #e8772e 0%, #d4621a 100%);
   color: #fff;
+  border: none;
   border-radius: var(--nanping-radius);
-  font-size: 0.95rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition: background 0.15s;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(232, 119, 46, 0.35);
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  letter-spacing: 0.5px;
 }
 
 .course-header .header-write-btn:hover {
-  background: var(--nanping-primary-hover);
-  color: #fff;
-  text-decoration: none;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(232, 119, 46, 0.45);
+  background: linear-gradient(135deg, #f08536 0%, #e06d1e 100%);
+}
+
+.course-header .header-write-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(232, 119, 46, 0.3);
 }
 
 /* ---- 评价列表网格 ---- */

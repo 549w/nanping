@@ -158,12 +158,11 @@ function renderCourseHeader(data) {
         <span class="header-avg">${data.avg_rating != null ? data.avg_rating.toFixed(1) + " 分" : ""}</span>
         <span>${data.review_count || 0} 条评价</span>
       </div>
-      <a href="#add-review-section" class="header-write-btn" id="write-review-btn">✏️ 写评价</a>
+      <button type="button" class="header-write-btn" id="write-review-btn">✏️ 写评价</button>
     </div>`;
 
   // 平滑滚动到评价表单
-  document.getElementById("write-review-btn").addEventListener("click", (e) => {
-    e.preventDefault();
+  document.getElementById("write-review-btn").addEventListener("click", () => {
     document.getElementById("add-review-section").scrollIntoView({ behavior: "smooth" });
   });
 }
