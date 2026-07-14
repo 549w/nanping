@@ -14,12 +14,15 @@
 
 ---
 
-<p align="center">
-  <img src="https://img.shields.io/badge/插件用户-200+-7B2D8E" alt="插件安装量">
-  <img src="https://img.shields.io/badge/收录课程-34,000+-4A90D9" alt="收录课程">
-  <img src="https://img.shields.io/badge/评价总数-11,300+-2ECC71" alt="评价总数">
-  <img src="https://img.shields.io/badge/数据截至-北京时间 2026 年 7 月 14 日 10 时-E67E22" alt="数据截至">
-</p>
+<div align="center">
+
+# 🧩 240+ &nbsp;&nbsp;&nbsp; 📚 34,000+ &nbsp;&nbsp;&nbsp; 💬 11,300+
+
+**插件用户** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **收录课程** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **评价总数**
+
+<sub>数据截至 2026 年 7 月 14 日</sub>
+
+</div>
 
 Nanping 是一个面向 [南京大学选课系统](https://xk.nju.edu.cn) 的课程信息增强工具。它通过浏览器插件在选课页面中注入课程评分数据，并配合后端 API 提供评价查询与存储服务，帮助同学们更明智地选课。
 
