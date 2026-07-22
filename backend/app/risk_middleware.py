@@ -19,6 +19,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import settings
 from .risk import (
+    IPTracker,
     RiskLevel,
     RiskResult,
     SessionState,
@@ -34,10 +35,11 @@ logger = logging.getLogger("nanping.risk")
 
 
 # ============================================================
-# 全局会话存储（单例）
+# 全局会话存储和 IP 追踪器（单例）
 # ============================================================
 
 _session_store = SessionStore()
+_ip_tracker = IPTracker()
 
 
 def get_session_store() -> SessionStore:
@@ -49,6 +51,17 @@ def set_session_store(store: SessionStore) -> None:
     """替换全局会话存储（测试用）。"""
     global _session_store
     _session_store = store
+
+
+def get_ip_tracker() -> IPTracker:
+    """获取全局 IP 追踪器（测试可替换）。"""
+    return _ip_tracker
+
+
+def set_ip_tracker(tracker: IPTracker) -> None:
+    """替换全局 IP 追踪器（测试用）。"""
+    global _ip_tracker
+    _ip_tracker = tracker
 
 
 # ============================================================
@@ -104,8 +117,8 @@ def set_session_cookie(response: Response, session_id: str, is_new: bool) -> Non
         value=session_id,
         max_age=settings.RISK_COOKIE_MAX_AGE,
         httponly=True,
-        samesite="lax",
-        secure=settings.RISK_COOKIE_SECURE,
+        samesite="none",  # 跨域需要 none
+        secure=True,      # 必须 HTTPS
         path="/",
     )
 
@@ -225,7 +238,14 @@ class RiskControlMiddleware(BaseHTTPMiddleware):
         # 追踪请求
         track_request(session, request, now)
 
-        # 计算风险分数
+        # 提取 course_id（用于 IP 追踪）
+        course_id = extract_course_id_from_path(request.url.path)
+
+        # IP 级别追踪
+        ip = get_client_ip(request)
+        await _ip_tracker.track_request(ip, session_id, course_id, now)
+
+        # 计算 session 级别风险分数
         result = compute_risk_score(
             session,
             now,
@@ -233,6 +253,27 @@ class RiskControlMiddleware(BaseHTTPMiddleware):
             course_threshold=settings.RISK_COURSE_THRESHOLD,
             auth_discount=settings.RISK_AUTH_DISCOUNT,
         )
+
+        # 计算 IP 级别风险分数
+        ip_score, ip_reasons = await _ip_tracker.compute_ip_risk(ip, now)
+
+        # 合并风险：取较高等级
+        if ip_score > result.score:
+            # IP 风险更高，使用 IP 风险
+            if ip_score >= 70:
+                result = RiskResult(
+                    score=ip_score,
+                    level=RiskLevel.HIGH,
+                    components={"ip_risk": ip_score},
+                    reasons=ip_reasons,
+                )
+            elif ip_score >= 30:
+                result = RiskResult(
+                    score=ip_score,
+                    level=RiskLevel.MEDIUM,
+                    components={"ip_risk": ip_score},
+                    reasons=ip_reasons,
+                )
 
         # 高风险处理
         if result.level == RiskLevel.HIGH:

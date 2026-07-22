@@ -120,6 +120,110 @@ class SessionStore:
         async with self._lock:
             return list(self._sessions.values())
 
+    async def clear(self) -> None:
+        """清空所有会话（测试用）。"""
+        async with self._lock:
+            self._sessions.clear()
+
+
+class IPTracker:
+    """IP 级别追踪器。
+
+    用于检测跨 session 的爬虫行为：
+    - 同一 IP 短时间内发起大量请求
+    - 同一 IP 关联多个 session（可能是清除 cookie 的爬虫）
+    - 同一 IP 访问大量不同课程
+    """
+
+    def __init__(self):
+        self._ip_data: dict[str, dict] = {}  # ip -> {timestamps, session_ids, course_ids}
+        self._lock = asyncio.Lock()
+
+    async def track_request(
+        self,
+        ip: str,
+        session_id: str,
+        course_id: int | None,
+        now: float,
+    ) -> None:
+        """记录 IP 的请求。"""
+        async with self._lock:
+            if ip not in self._ip_data:
+                self._ip_data[ip] = {
+                    "timestamps": [],
+                    "session_ids": set(),
+                    "course_ids": set(),
+                }
+
+            data = self._ip_data[ip]
+            data["timestamps"].append(now)
+            data["session_ids"].add(session_id)
+            if course_id is not None:
+                data["course_ids"].add(course_id)
+
+            # 只保留最近 10 分钟的数据
+            cutoff = now - 600
+            data["timestamps"] = [t for t in data["timestamps"] if t >= cutoff]
+
+    async def compute_ip_risk(self, ip: str, now: float) -> tuple[float, list[str]]:
+        """计算 IP 级别的风险分数。
+
+        Returns:
+            (score, reasons)
+        """
+        async with self._lock:
+            if ip not in self._ip_data:
+                return 0.0, []
+
+            data = self._ip_data[ip]
+            components: dict[str, float] = {}
+            reasons: list[str] = []
+
+            # 1. IP 请求速率（所有 session 合计）
+            window_1min = now - 60
+            recent_requests = [t for t in data["timestamps"] if t >= window_1min]
+            if len(recent_requests) > 50:  # 单 IP 超过 50 次/分钟
+                score = 40.0
+                components["ip_rate"] = score
+                reasons.append(f"ip_rate={len(recent_requests)}/min")
+
+            # 2. 多 session 检测（同一 IP 关联过多 session）
+            if len(data["session_ids"]) > 5:  # 10 分钟内超过 5 个 session
+                score = 30.0
+                components["multi_session"] = score
+                reasons.append(f"sessions={len(data['session_ids'])}")
+
+            # 3. IP 访问课程数
+            if len(data["course_ids"]) > 100:
+                score = 50.0
+                components["ip_courses"] = score
+                reasons.append(f"ip_courses={len(data['course_ids'])}")
+
+            total_score = sum(components.values())
+            return total_score, reasons
+
+    async def cleanup(self, ttl_seconds: float) -> int:
+        """清理过期 IP 数据。"""
+        now = time.monotonic()
+        cutoff = now - ttl_seconds
+        expired = []
+
+        async with self._lock:
+            for ip, data in self._ip_data.items():
+                # 如果最近的请求都过期了，删除整个记录
+                if not data["timestamps"] or all(t < cutoff for t in data["timestamps"]):
+                    expired.append(ip)
+
+            for ip in expired:
+                del self._ip_data[ip]
+
+        return len(expired)
+
+    async def clear(self) -> None:
+        """清空所有 IP 数据（测试用）。"""
+        async with self._lock:
+            self._ip_data.clear()
+
 
 # ============================================================
 # 行为追踪

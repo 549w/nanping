@@ -10,6 +10,7 @@ import pytest_asyncio
 from httpx import AsyncClient
 
 from backend.app.risk import (
+    IPTracker,
     RiskLevel,
     SessionState,
     SessionStore,
@@ -148,6 +149,94 @@ class TestSessionStore:
         all_sessions = await store.get_all()
         assert len(all_sessions) == 1
         assert all_sessions[0].session_id == "new-session"
+
+
+class TestIPTracker:
+    """IP 追踪器测试。"""
+
+    @pytest.mark.asyncio
+    async def test_track_and_compute_low_risk(self):
+        """少量请求应为低风险。"""
+        tracker = IPTracker()
+        now = time.monotonic()
+        ip = "1.2.3.4"
+
+        # 模拟 10 次请求，只用 2 个 session（避免触发多 session 检测）
+        for i in range(10):
+            await tracker.track_request(ip, f"session-{i % 2}", i, now - 60 + i)
+
+        score, reasons = await tracker.compute_ip_risk(ip, now)
+        assert score < 30
+        assert len(reasons) == 0
+
+    @pytest.mark.asyncio
+    async def test_high_ip_request_rate(self):
+        """单 IP 高频请求应触发高风险。"""
+        tracker = IPTracker()
+        now = time.monotonic()
+        ip = "1.2.3.4"
+
+        # 模拟 60 次请求/分钟（超过 50 阈值）
+        for i in range(60):
+            await tracker.track_request(ip, f"session-{i % 3}", i, now - 60 + i)
+
+        score, reasons = await tracker.compute_ip_risk(ip, now)
+        assert score >= 40
+        assert any("ip_rate" in r for r in reasons)
+
+    @pytest.mark.asyncio
+    async def test_multi_session_detection(self):
+        """同一 IP 关联多个 session 应触发风险。"""
+        tracker = IPTracker()
+        now = time.monotonic()
+        ip = "1.2.3.4"
+
+        # 模拟 10 个不同 session（超过 5 阈值）
+        for i in range(10):
+            await tracker.track_request(ip, f"session-{i}", i, now - 60 + i)
+
+        score, reasons = await tracker.compute_ip_risk(ip, now)
+        assert score >= 30
+        assert any("sessions" in r for r in reasons)
+
+    @pytest.mark.asyncio
+    async def test_ip_course_count(self):
+        """单 IP 访问大量课程应触发高风险。"""
+        tracker = IPTracker()
+        now = time.monotonic()
+        ip = "1.2.3.4"
+
+        # 模拟访问 150 个不同课程（超过 100 阈值）
+        for i in range(150):
+            await tracker.track_request(ip, "session-1", i, now - 60 + i)
+
+        score, reasons = await tracker.compute_ip_risk(ip, now)
+        assert score >= 50
+        assert any("ip_courses" in r for r in reasons)
+
+    @pytest.mark.asyncio
+    async def test_cleanup(self):
+        """过期 IP 数据应被清理。"""
+        tracker = IPTracker()
+        old_time = time.monotonic() - 700  # 11 分钟前
+        recent_time = time.monotonic()
+
+        # 添加旧数据
+        await tracker.track_request("1.1.1.1", "session-old", 1, old_time)
+        # 添加新数据
+        await tracker.track_request("2.2.2.2", "session-new", 2, recent_time)
+
+        # 清理 600 秒前的数据
+        cleaned = await tracker.cleanup(600)
+        assert cleaned == 1
+
+        # 旧 IP 应被清理
+        score, _ = await tracker.compute_ip_risk("1.1.1.1", recent_time)
+        assert score == 0
+
+        # 新 IP 应保留
+        score, _ = await tracker.compute_ip_risk("2.2.2.2", recent_time)
+        assert score >= 0
 
 
 class TestRiskScoring:

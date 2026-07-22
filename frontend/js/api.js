@@ -35,6 +35,7 @@ async function request(method, path, body = null) {
     response = await fetch(`${API_BASE}${path}`, {
       method,
       headers,
+      credentials: 'include',  // 携带 cookie（风控需要）
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (err) {

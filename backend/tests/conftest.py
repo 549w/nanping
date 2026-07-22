@@ -68,6 +68,11 @@ async def client(test_engine):
     from backend.app.plugin_cache import clear_all_caches
     await clear_all_caches()
 
+    # 清理风控状态（避免跨测试污染）
+    from backend.app.risk_middleware import get_ip_tracker, get_session_store
+    await get_session_store().clear()
+    await get_ip_tracker().clear()
+
     async_session = async_sessionmaker(
         test_engine, class_=AsyncSession, expire_on_commit=False
     )
