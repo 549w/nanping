@@ -64,6 +64,10 @@ async def client(test_engine):
 
     测试期间禁用限流器，避免触发速率限制。
     """
+    # 清理插件缓存（避免跨测试污染）
+    from backend.app.plugin_cache import clear_all_caches
+    await clear_all_caches()
+
     async_session = async_sessionmaker(
         test_engine, class_=AsyncSession, expire_on_commit=False
     )

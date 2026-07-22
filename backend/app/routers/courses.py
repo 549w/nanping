@@ -15,6 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..activity import log_activity
 from ..database import get_db
 from ..models import Course, CourseOffering, Review, User
+from ..plugin_cache import (
+    cached_find_exact_course,
+    cached_get_top_reviews,
+    cached_search_courses,
+)
 from ..schemas import (
     BatchMatchRequest,
     BatchMatchResponse,
@@ -508,7 +513,9 @@ async def _match_one(
     name = query.name.strip()
 
     # 精确匹配课程 ID（供「写评价」链接使用，不依赖评价）
-    exact_course = await _find_exact_course(db, code, name, teacher_str)
+    exact_course = await cached_find_exact_course(
+        db, code, name, teacher_str, _find_exact_course
+    )
     exact_course_id = exact_course.id if exact_course else None
 
     for use_code, use_teacher, use_name, match_level in _MATCH_STRATEGIES:
@@ -524,7 +531,9 @@ async def _match_one(
         search_teacher = teacher_str if use_teacher else ""
         search_name = name if use_name else ""
 
-        results = await _search_courses(db, search_code, search_teacher, search_name)
+        results = await cached_search_courses(
+            db, search_code, search_teacher, search_name, _search_courses
+        )
         with_reviews = [(c, rc, ar) for c, rc, ar in results if rc > 0]
 
         if not with_reviews:
@@ -545,7 +554,7 @@ async def _match_one(
 
         matched: list[MatchCourseItem] = []
         for course, rc, ar, _, _ in scored[:3]:
-            reviews = await _get_top_reviews(db, course.id)
+            reviews = await cached_get_top_reviews(db, course.id, 5, _get_top_reviews)
             matched.append(
                 MatchCourseItem(
                     course=_course_to_item(course, rc, ar),

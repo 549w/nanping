@@ -19,6 +19,7 @@ from .limiter import limiter
 from .logging_config import setup_logging
 from .middleware import RequestLoggingMiddleware, global_exception_handler
 from .migrate import run_migrations
+from .risk_middleware import RiskControlMiddleware
 from .routers import auth, courses, events, news, plugin, review
 
 
@@ -58,6 +59,9 @@ app.add_middleware(ForceHttpsMiddleware)
 # ---- Session（SQLAdmin 认证需要） ----
 app.add_middleware(SessionMiddleware, secret_key=settings.ADMIN_SECRET_KEY)
 
+# ---- 风控中间件（在请求日志之前，以便记录拦截的请求） ----
+app.add_middleware(RiskControlMiddleware)
+
 # ---- 请求日志中间件 ----
 app.add_middleware(RequestLoggingMiddleware)
 
@@ -68,6 +72,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Risk-Score", "X-Risk-Level", "X-Risk-Session"],
 )
 
 # ---- 限流 ----

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..activity import log_activity
 from ..database import get_db
+from ..plugin_cache import cached_get_latest_news
 from ..schemas import (
     PluginCourseResult,
     PluginQuery,
@@ -273,7 +274,7 @@ async def plugin_endpoint(
         )
 
     # ---- 2. 最新公告 ----
-    news_items = await _get_latest_news(db, limit=1)
+    news_items = await cached_get_latest_news(db, 1, _get_latest_news)
     news_html = _render_news_html(news_items)
 
     # ---- 3. Toast 文案 ----
