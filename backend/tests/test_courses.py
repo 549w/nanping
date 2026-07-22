@@ -111,6 +111,55 @@ class TestSearchCourses:
             assert item["avg_rating"] is None
             assert item["review_count"] == 0
 
+    @pytest.mark.asyncio
+    async def test_like_wildcard_percent_not_in_name(self, client, test_course):
+        """搜索 name='%' 不应匹配所有课程（通配符需转义）。"""
+        response = await client.get("/courses", params={"name": "%"})
+        assert response.status_code == 200
+        data = response.json()
+        # '%' 被转义为字面量，数据库中没有课程名包含 '%'
+        assert data["total"] == 0
+        assert data["items"] == []
+
+    @pytest.mark.asyncio
+    async def test_like_wildcard_percent_not_in_teacher(self, client, test_course):
+        """搜索 teacher='%' 不应匹配所有课程（通配符需转义）。"""
+        response = await client.get("/courses", params={"teacher": "%"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+        assert data["items"] == []
+
+    @pytest.mark.asyncio
+    async def test_like_wildcard_percent_not_in_code(self, client, test_course):
+        """搜索 code='%' 不应匹配所有课程（通配符需转义）。"""
+        response = await client.get("/courses", params={"code": "%"})
+        assert response.status_code == 200
+        data = response.json()
+        # '%' 被转义，前缀匹配 '%' 字面量 → 无命中
+        assert data["total"] == 0
+        assert data["items"] == []
+
+    @pytest.mark.asyncio
+    async def test_like_wildcard_underscore_literal(self, client, test_course):
+        """搜索 name='__' 不应匹配任意两字字符（下划线需转义）。"""
+        response = await client.get("/courses", params={"name": "__"})
+        assert response.status_code == 200
+        data = response.json()
+        # '_' 被转义为字面量，数据库中没有课程名包含 '__'
+        assert data["total"] == 0
+        assert data["items"] == []
+
+    @pytest.mark.asyncio
+    async def test_like_wildcard_normal_search_still_works(self, client, test_course):
+        """转义修复后，正常搜索仍应正常工作。"""
+        response = await client.get("/courses", params={"name": "测试"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] >= 1
+        names = [item["name"] for item in data["items"]]
+        assert any("测试" in n for n in names)
+
 
 class TestGetCourseDetail:
     """GET /courses/{course_id} 测试。"""

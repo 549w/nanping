@@ -33,6 +33,21 @@ logger = logging.getLogger("nanping.courses")
 router = APIRouter(tags=["课程"])
 
 
+def _escape_like(value: str) -> str:
+    """转义 SQL LIKE 通配符，防止用户通过 ``%`` / ``_`` 批量获取数据。
+
+    SQLAlchemy 的 ``.like()`` 不会自动转义用户输入中的通配符，
+    因此需要在拼接 pattern 前手动转义。
+
+    Args:
+        value: 用户输入的原始字符串。
+
+    Returns:
+        转义后的字符串，``%`` → ``\\%``，``_`` → ``\\_``。
+    """
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _shorten_semester(raw: str) -> str:
     """将教务系统长格式学期转为短格式。
 
@@ -78,14 +93,14 @@ async def search_courses(
     # 构建 WHERE 条件
     conditions = []
     if code:
-        conditions.append(Course.code.like(f"{code}%"))
+        conditions.append(Course.code.like(f"{_escape_like(code)}%"))
     if name:
         if name in ABBR:
-            conditions.append(Course.name.like(f"%{ABBR[name]}%"))
-        else:    
-            conditions.append(Course.name.like(f"%{name}%"))
+            conditions.append(Course.name.like(f"%{_escape_like(ABBR[name])}%"))
+        else:
+            conditions.append(Course.name.like(f"%{_escape_like(name)}%"))
     if teacher:
-        conditions.append(Course.teacher.like(f"%{teacher}%"))
+        conditions.append(Course.teacher.like(f"%{_escape_like(teacher)}%"))
 
     # 聚合子查询：评价数
     review_count_subq = (
@@ -355,10 +370,10 @@ async def _search_courses(
     if teacher_str:
         teachers = [t.strip() for t in teacher_str.split(",") if t.strip()][:5]
         if teachers:
-            conditions.append(or_(*[Course.teacher.like(f"%{t}%") for t in teachers]))
+            conditions.append(or_(*[Course.teacher.like(f"%{_escape_like(t)}%") for t in teachers]))
 
     if name:
-        conditions.append(Course.name.like(f"%{name.strip()}%"))
+        conditions.append(Course.name.like(f"%{_escape_like(name.strip())}%"))
 
     if not conditions:
         return []
