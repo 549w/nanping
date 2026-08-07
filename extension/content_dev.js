@@ -172,6 +172,95 @@
   };
 
   // ============================================================
+  // 持久化缓存（chrome.storage.local）
+  // 跨页面刷新、跨标签、跨浏览器会话保留
+  // 课程/评价变化不频繁，长 TTL 即可；公告变化较快，短 TTL
+  // ============================================================
+
+  const CACHE_VERSION = "v1";
+  const CACHE_TTL = {
+    plugin: 60 * 60 * 1000,    // /plugin 整体响应 1 小时
+    course: 60 * 60 * 1000,    // 单课程 1 小时
+    reviews: 60 * 60 * 1000,   // 评价 1 小时
+    news: 10 * 60 * 1000,      // 公告 10 分钟（管理员手动发布）
+  };
+
+  /**
+   * 持久化缓存读写。
+   * chrome.storage.local 是异步 API，封装成 Promise 便于 await。
+   * 所有失败都吞掉，不阻塞主流程（缓存是优化，不是关键路径）。
+   */
+  const PersistentCache = {
+    VERSION: CACHE_VERSION,
+
+    /**
+     * 获取指定 key 的缓存，未命中或过期返回 null。
+     * @param {string} key
+     * @returns {Promise<any|null>}
+     */
+    get: function (key) {
+      return new Promise(function (resolve) {
+        try {
+          chrome.storage.local.get([key], function (result) {
+            try {
+              if (chrome.runtime.lastError) { resolve(null); return; }
+              var entry = result[key];
+              if (!entry || entry._v !== PersistentCache.VERSION) { resolve(null); return; }
+              if (Date.now() - entry._t > entry._ttl) { resolve(null); return; }
+              resolve(entry.data);
+            } catch (_) { resolve(null); }
+          });
+        } catch (_) { resolve(null); }
+      });
+    },
+
+    /**
+     * 写入缓存。
+     * @param {string} key
+     * @param {any} data
+     * @param {number} ttlMs
+     * @returns {Promise<void>}
+     */
+    set: function (key, data, ttlMs) {
+      return new Promise(function (resolve) {
+        try {
+          var entry = { _v: PersistentCache.VERSION, _t: Date.now(), _ttl: ttlMs, data: data };
+          chrome.storage.local.set({ [key]: entry }, function () { resolve(); });
+        } catch (_) { resolve(); }
+      });
+    },
+
+    /**
+     * 清理过期缓存（启动时调用一次即可）。
+     * @returns {Promise<number>} 清理条数
+     */
+    cleanup: function () {
+      return new Promise(function (resolve) {
+        try {
+          chrome.storage.local.get(null, function (all) {
+            try {
+              if (chrome.runtime.lastError) { resolve(0); return; }
+              var now = Date.now();
+              var keysToRemove = [];
+              for (var key in all) {
+                var entry = all[key];
+                if (entry && entry._v === PersistentCache.VERSION && (now - entry._t > entry._ttl)) {
+                  keysToRemove.push(key);
+                }
+              }
+              if (keysToRemove.length > 0) {
+                chrome.storage.local.remove(keysToRemove, function () { resolve(keysToRemove.length); });
+              } else {
+                resolve(0);
+              }
+            } catch (_) { resolve(0); }
+          });
+        } catch (_) { resolve(0); }
+      });
+    },
+  };
+
+  // ============================================================
   // 认证 primitive（增值服务预留，MVP 阶段不活跃）
   // ============================================================
 
@@ -197,6 +286,10 @@
     processedRows: new WeakSet(),
     /** 课程结果缓存：{ "code|teacher": PluginCourseResult, ... }，tab 切换复用 */
     courseCache: {},
+    /** /plugin 整体响应缓存（内存层）：{ cacheKey: response }，页面会话内复用 */
+    responseCache: new Map(),
+    /** 上次处理的课程列表签名：跨 DOM 行的稳定指纹，用于跳过空操作 */
+    lastCourseSignature: null,
     /** Shadow DOM 根节点 */
     shadowRoot: null,
     /** 侧边面板 DOM */
@@ -472,8 +565,34 @@
   }
 
   /**
+   * 为 /plugin 响应构造稳定的缓存 key。
+   * 同一组 queries + 同一 user 总是得到相同 key，
+   * 因此 key 命中即视为语义相同。
+   *
+   * @param {Array} queries
+   * @param {string} username
+   * @param {string} gender
+   * @returns {string}
+   */
+  function buildPluginCacheKey(queries, username, gender) {
+    // 对 query 列表稳定排序：code+teacher+name 作为排序键
+    var sorted = queries.slice().sort(function (a, b) {
+      var ka = (a.code || "") + "|" + (a.teacher || "") + "|" + (a.name || "");
+      var kb = (b.code || "") + "|" + (b.teacher || "") + "|" + (b.name || "");
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    });
+    var queryKey = sorted
+      .map(function (q) { return (q.code || "") + "|" + (q.teacher || "") + "|" + (q.name || ""); })
+      .join("#");
+    return "plugin:" + queryKey + "#u=" + (username || "") + "#g=" + (gender || "");
+  }
+
+  /**
    * 统一插件数据请求（万能接口）。
    * 一次 POST /plugin 获取匹配结果、公告和提示配置。
+   *
+   * 三级查找：内存 → chrome.storage.local → 网络。
+   * 网络成功后会写入前两级，供后续请求命中。
    *
    * @param {Array<{code: string, teacher: string, name: string}>} queries
    * @param {string} username
@@ -481,6 +600,25 @@
    * @returns {Promise<{toast: object, news: Array, results: Array}|null>}
    */
   async function fetchPluginData(queries, username, gender) {
+    // 0. 防御：queries 为空直接返回 null
+    if (!queries || queries.length === 0) return null;
+
+    // 1. 构建缓存 key
+    var cacheKey = buildPluginCacheKey(queries, username, gender);
+
+    // 2. 内存缓存（页面会话内）
+    if (state.responseCache.has(cacheKey)) {
+      return state.responseCache.get(cacheKey);
+    }
+
+    // 3. 持久化缓存（跨刷新/标签/浏览器会话）
+    var persisted = await PersistentCache.get(cacheKey);
+    if (persisted) {
+      state.responseCache.set(cacheKey, persisted);
+      return persisted;
+    }
+
+    // 4. 实际网络请求
     var base = await getApiBase();
     if (!base) return null;
 
@@ -510,6 +648,10 @@
         console.warn("[Nanping] 插件 API v2 返回数据格式错误:", data);
         return null;
       }
+
+      // 5. 写入两级缓存
+      state.responseCache.set(cacheKey, data);
+      PersistentCache.set(cacheKey, data, CACHE_TTL.plugin);
 
       return data;
     } catch (err) {
@@ -1283,20 +1425,44 @@
   // ============================================================
 
   /**
+   * 为课程列表生成稳定签名（跨 DOM 行的纯数据指纹）。
+   * 当课程内容完全相同时签名相同 → 可安全跳过 processPage。
+   * @param {Array} courses
+   * @returns {string}
+   */
+  function getCoursesSignature(courses) {
+    return courses
+      .map(function (c) { return (c.code || "") + "|" + (c.teacher || "") + "|" + (c.name || ""); })
+      .sort()
+      .join("§");
+  }
+
+  /**
    * 扫描页面课程行 → 批量请求 API → 注入徽章。
    *
    * 核心流程：
    *   1. 从 DOM 提取所有课程行信息
-   *   2. 筛选未处理过的行
-   *   3. 一次性 POST /courses/match
-   *   4. 逐行注入评分徽章
+   *   2. 课程签名未变 → 直接返回（无新内容，跳过网络）
+   *   3. 筛选未处理过的行
+   *   4. 命中内存缓存的 → 直接注入；未命中的 → 批量内去重后请求
+   *   5. 响应分发到对应行（含去重后的多对一）
    */
   async function processPage() {
     try {
       var courses = extractAllCourses();
-      if (courses.length === 0) return;
+      if (courses.length === 0) {
+        state.lastCourseSignature = null;
+        return;
+      }
 
-      // 只处理还未注入徽章的行
+      // 1. 课程列表稳定签名：内容相同则跳过整个 processPage
+      var sig = getCoursesSignature(courses);
+      if (sig === state.lastCourseSignature) {
+        return;
+      }
+      state.lastCourseSignature = sig;
+
+      // 2. 只处理还未注入徽章的行
       var newCourses = courses.filter(function (c) {
         return !state.processedRows.has(c.row);
       });
@@ -1310,23 +1476,28 @@
         showDynamicIsland("loading", loadingText);
       }, "显示加载提示", null);
 
-      // 分离缓存命中和未命中的课程
-      var cacheKey = function (c) { return c.code + "|" + c.teacher; };
-      var uncachedCourses = [];
-      var uncachedIndices = [];
-      newCourses.forEach(function (c, i) {
+      // 3. 分离缓存命中和未命中的课程
+      var cacheKey = function (c) { return (c.code || "") + "|" + (c.teacher || ""); };
+      var uncachedCourses = [];   // 去重后的待请求课程
+      var rowGroups = new Map();  // dedupKey → [row, row, ...] 用于响应分发
+      newCourses.forEach(function (c) {
         if (state.courseCache[cacheKey(c)]) {
-          // 缓存命中，直接注入
+          // 内存缓存命中，直接注入
           safeExec(function () {
             injectBadge(c.row, state.courseCache[cacheKey(c)]);
-          }, "注入缓存徽章-" + i, null);
-        } else {
-          uncachedCourses.push(c);
-          uncachedIndices.push(i);
+          }, "注入缓存徽章", null);
+          return;
         }
+        // 批量内去重：相同 (code, teacher, name) 只发一次
+        var dedupKey = (c.code || "") + "|" + (c.teacher || "") + "|" + (c.name || "");
+        if (!rowGroups.has(dedupKey)) {
+          rowGroups.set(dedupKey, []);
+          uncachedCourses.push(c);
+        }
+        rowGroups.get(dedupKey).push(c.row);
       });
 
-      // 只对未缓存的课程请求 API
+      // 4. 只对去重后的未缓存课程请求 API
       if (uncachedCourses.length > 0) {
         var username = safeExec(extractUsername, "提取用户名", "");
         var gender = safeExec(extractUserGender, "提取性别", "");
@@ -1339,16 +1510,17 @@
         });
         var response = await fetchPluginData(queries, username, gender);
 
-        // 注入未命中课程 + 写入缓存
+        // 5. 把响应分发到对应行（含去重后的多对一）
         uncachedCourses.forEach(function (c, idx) {
-          var origIdx = uncachedIndices[idx];
           var courseData = response && response.courses ? response.courses[idx] : null;
           if (courseData) {
             state.courseCache[cacheKey(c)] = courseData;
           }
-          safeExec(function () {
-            injectBadge(newCourses[origIdx].row, courseData);
-          }, "注入新徽章-" + origIdx, null);
+          var dedupKey = (c.code || "") + "|" + (c.teacher || "") + "|" + (c.name || "");
+          var rows = rowGroups.get(dedupKey) || [];
+          rows.forEach(function (row) {
+            safeExec(function () { injectBadge(row, courseData); }, "注入新徽章", null);
+          });
         });
 
         // 缓存 news_html 和 toast 配置
@@ -1424,6 +1596,11 @@
   function init() {
     try {
       injectStyles();
+
+      // 启动时清理过期缓存（不阻塞主流程）
+      safeExecAsync(function () {
+        return PersistentCache.cleanup();
+      }, "清理过期缓存", 0);
 
       // 首次处理：页面可能已有静态内容，也可能还没有（JS 渲染中）
       setTimeout(function () {

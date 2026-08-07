@@ -11,8 +11,10 @@
 - 缓存键基于函数参数生成
 - 命中时跳过数据库查询
 - 支持通过配置禁用缓存
+- **Singleflight**：同一 key 多个并发请求只执行一次原函数，避免击穿
 """
 
+import asyncio
 import logging
 from typing import Any
 
@@ -65,6 +67,55 @@ async def clear_all_caches() -> int:
 
 
 # ============================================================
+# Singleflight —— 同一 key 并发请求只执行一次原函数
+# ============================================================
+# 场景：300 个学生同时打开选课页 → 300 个并发 /plugin 请求
+# → 各自查 cache miss → 300 次 _match_one → 数据库被打爆
+# 解决：第一个到达的请求去查 DB，其余 299 个 await 同一个 Future
+# 作用域：单 worker 进程内（4 worker = 4 个独立单飞池）
+
+_inflight: dict[str, asyncio.Future] = {}
+_inflight_lock = asyncio.Lock()
+
+
+async def _singleflight(key: str, coro_factory):
+    """Singleflight：同一 key 并发请求只执行一次 coro_factory()。
+
+    Args:
+        key: 单飞键（与缓存 key 一致即可）
+        coro_factory: 无参 callable，返回 coroutine。
+
+    Returns:
+        coro_factory() 的结果。
+    """
+    # 快速路径：已有进行中的请求
+    fut = _inflight.get(key)
+    if fut is not None:
+        return await fut
+
+    async with _inflight_lock:
+        # 双重检查：拿锁后可能已经被别的协程注册了
+        fut = _inflight.get(key)
+        if fut is not None:
+            return await fut
+
+        loop = asyncio.get_event_loop()
+        fut = loop.create_future()
+        _inflight[key] = fut
+
+        try:
+            result = await coro_factory()
+            fut.set_result(result)
+            return result
+        except Exception as exc:
+            fut.set_exception(exc)
+            raise
+        finally:
+            # 清理：让下次 miss 重新执行
+            _inflight.pop(key, None)
+
+
+# ============================================================
 # 缓存包装函数
 # ============================================================
 
@@ -100,7 +151,10 @@ async def cached_find_exact_course(
         logger.debug("缓存命中: %s", cache_key)
         return cached
 
-    result = await original_func(db, code, name, teacher_str)
+    # Singleflight：并发 miss 时只让一个协程查 DB
+    result = await _singleflight(
+        cache_key, lambda: original_func(db, code, name, teacher_str)
+    )
     await _exact_course_cache.set(cache_key, result)
     logger.debug("缓存写入: %s", cache_key)
     return result
@@ -137,7 +191,9 @@ async def cached_search_courses(
         logger.debug("缓存命中: %s", cache_key)
         return cached
 
-    result = await original_func(db, code, teacher_str, name)
+    result = await _singleflight(
+        cache_key, lambda: original_func(db, code, teacher_str, name)
+    )
     await _search_cache.set(cache_key, result)
     logger.debug("缓存写入: %s", cache_key)
     return result
@@ -172,7 +228,9 @@ async def cached_get_top_reviews(
         logger.debug("缓存命中: %s", cache_key)
         return cached
 
-    result = await original_func(db, course_id, limit)
+    result = await _singleflight(
+        cache_key, lambda: original_func(db, course_id, limit)
+    )
     await _reviews_cache.set(cache_key, result)
     logger.debug("缓存写入: %s", cache_key)
     return result
@@ -205,7 +263,9 @@ async def cached_get_latest_news(
         logger.debug("缓存命中: %s", cache_key)
         return cached
 
-    result = await original_func(db, limit)
+    result = await _singleflight(
+        cache_key, lambda: original_func(db, limit)
+    )
     await _news_cache.set(cache_key, result)
     logger.debug("缓存写入: %s", cache_key)
     return result

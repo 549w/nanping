@@ -8,7 +8,7 @@ import html as html_mod
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..activity import log_activity
@@ -237,6 +237,7 @@ def _render_news_html(news_items) -> str:
 async def plugin_endpoint(
     data: PluginRequest,
     request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> PluginResponse:
     """插件统一入口 v2。
@@ -244,6 +245,11 @@ async def plugin_endpoint(
     一次请求完成课程匹配、公告查询、HTML 预渲染。
     返回的 badge_html / panel_html / news_html 由插件直接 innerHTML 注入。
     """
+    # ---- 0. HTTP 缓存提示 ----
+    # private: 仅单个浏览器可缓存（响应可能因 username/gender 而不同）
+    # max-age=60: 1 分钟内浏览器自带的 HTTP 缓存命中
+    # 注：插件端有自己的持久化缓存（更长 TTL），这个头是兜底
+    response.headers["Cache-Control"] = "private, max-age=60"
     # ---- 1. 课程匹配（复用 courses._match_one） ----
     course_results: list[PluginCourseResult] = []
     matched_count = 0
