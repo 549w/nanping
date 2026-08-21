@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..models import News
+from ..query_helpers import NEWS_IS_ACTIVE
 from ..schemas import NewsItem
 
 router = APIRouter(tags=["公告"])
@@ -18,7 +19,7 @@ async def _get_latest_news(db: AsyncSession, limit: int = 5) -> list[NewsItem]:
     """获取最新公告（供其他路由复用的内部函数）。"""
     result = await db.execute(
         select(News)
-        .where(News.is_active == 1)
+        .where(NEWS_IS_ACTIVE)
         .order_by(News.created_at.desc())
         .limit(limit)
     )

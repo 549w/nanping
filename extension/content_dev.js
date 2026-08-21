@@ -168,7 +168,41 @@
     NEWS_ENDPOINT: "/news",
     DEBOUNCE_MS: 500, // 防抖间隔（避免 MutationObserver 频繁触发）
     PANEL_WIDTH: 420, // 侧边面板宽度（px）
-    TOKEN_KEY: "nanping_token", // localStorage key（与前端 auth.js 一致）
+    TOKEN_KEY: "nanping_token", // localStorage key（镜像 frontend/js/auth.js:TOKEN_KEY）
+  };
+
+  // ============================================================
+  // NJU 教务系统 DOM 选择器
+  // ============================================================
+  // ⚠️ 集中维护！NJU 教务系统改版时只需改这里，**不要**在业务代码里写 inline 选择器。
+  // 课程列表页：tbody.course-body > tr.course-tr，每行单元格用 .kch/.kcmc/.jsmc 等短类名。
+  // 课程详情页：article#course-main + .cv-page-header。
+  // ============================================================
+  const SELECTORS = {
+    // 课程列表页
+    courseRow: "tbody.course-body tr.course-tr",  // 课程行
+    courseRowFallback: "tr.course-tr",            // MutationObserver 用
+    resultContainer: ".result-container",         // 课程结果容器
+    codeAnchor: ".kch .cv-jxb-detail, .kch .cv-view-detail",  // 课程号锚点（专业课 vs 通识）
+    codeCell: ".kch",                             // 课程号单元格（fallback）
+    nameCell: ".kcmc",                            // 课程名单元格
+    teacherCell: ".jsmc",                         // 教师单元格
+    classContainerRow: ".course-jxb-container-tr", // 教师容器行
+    classTitle: ".jxb-title",                     // 班级标题
+    creditsCell: ".xf",                           // 学分
+    scheduleCell: ".sjdd",                        // 时间地点
+    campusCell: ".xq",                            // 校区
+    gradeCell: ".nj",                             // 年级
+    departmentCell: ".kkdw",                      // 开课单位
+
+    // 用户信息（顶栏）
+    username: ".username",
+    userImg: ".user-img",
+
+    // 课程详情页
+    courseDetailTop: "article#course-main .top",
+    courseDetailMain: "article#course-main",
+    pageHeader: ".cv-page-header",
   };
 
   // ============================================================
@@ -330,8 +364,8 @@
    */
   function extractCourseFromRow(row) {
     // 专业课是课程汇总行，课程号使用 cv-view-detail；其他课程类型通常使用 cv-jxb-detail。
-    const codeAnchor = row.querySelector(".kch .cv-jxb-detail, .kch .cv-view-detail");
-    const nameCell = row.querySelector(".kcmc");
+    const codeAnchor = row.querySelector(SELECTORS.codeAnchor);
+    const nameCell = row.querySelector(SELECTORS.nameCell);
     if (!nameCell) return null;
 
     var getText = function (sel) {
@@ -341,14 +375,14 @@
 
     var code = codeAnchor
       ? (codeAnchor.getAttribute("data-number") || codeAnchor.textContent || "").trim()
-      : (row.getAttribute("data-coursenumber") || getText(".kch"));
+      : (row.getAttribute("data-coursenumber") || getText(SELECTORS.codeCell));
     if (!code) return null;
 
-    var teacher = getText(".jsmc");
+    var teacher = getText(SELECTORS.teacherCell);
     if (!teacher) {
       var classContainerRow = row.nextElementSibling;
-      var teacherElements = classContainerRow && classContainerRow.matches(".course-jxb-container-tr")
-        ? classContainerRow.querySelectorAll(".jxb-title")
+      var teacherElements = classContainerRow && classContainerRow.matches(SELECTORS.classContainerRow)
+        ? classContainerRow.querySelectorAll(SELECTORS.classTitle)
         : [];
       teacher = Array.from(teacherElements)
         .map(function (el) { return el.textContent.trim(); })
@@ -360,12 +394,12 @@
     return {
       code: code,
       name: nameCell.textContent.trim(),
-      credits: getText(".xf"),
+      credits: getText(SELECTORS.creditsCell),
       teacher: teacher,
-      schedule: getText(".sjdd"),
-      campus: getText(".xq"),
-      grade: getText(".nj"),
-      department: getText(".kkdw"),
+      schedule: getText(SELECTORS.scheduleCell),
+      campus: getText(SELECTORS.campusCell),
+      grade: getText(SELECTORS.gradeCell),
+      department: getText(SELECTORS.departmentCell),
     };
   }
 
@@ -374,10 +408,10 @@
    * @returns {Array<{code, name, credits, teacher, schedule, campus, grade, department, row}>}
    */
   function extractAllCourses() {
-    var container = safeQuerySelector(".result-container");
+    var container = safeQuerySelector(SELECTORS.resultContainer);
     const rows = container
-      ? container.querySelectorAll("tbody.course-body tr.course-tr")
-      : document.querySelectorAll("tbody.course-body tr.course-tr");
+      ? container.querySelectorAll(SELECTORS.courseRow)
+      : document.querySelectorAll(SELECTORS.courseRow);
     const courses = [];
     rows.forEach((row) => {
       const info = extractCourseFromRow(row);
@@ -431,7 +465,7 @@
    * @returns {string} 用户名，若找不到则返回空字符串
    */
   function extractUsername() {
-    var el = document.querySelector(".username");
+    var el = document.querySelector(SELECTORS.username);
     return el ? el.textContent.trim() : "";
   }
 
@@ -441,7 +475,7 @@
    * @returns {string} 图片文件名，若找不到则返回空字符串
    */
   function extractUserGender() {
-    var img = document.querySelector(".user-img");
+    var img = document.querySelector(SELECTORS.userImg);
     if (!img) return "";
     var src = img.getAttribute("src") || "";
     var match = src.match(/([^/]+\.\w+)(?:\?|$)/);
@@ -693,7 +727,7 @@
       if (state.processedRows.has(row)) return;
       state.processedRows.add(row);
 
-      var nameCell = row.querySelector(".kcmc");
+      var nameCell = row.querySelector(SELECTORS.nameCell);
       if (!nameCell) return;
 
       // 避免重复注入
@@ -1038,12 +1072,12 @@
     return (
       '<div class="np-review-item" data-review-id="' + r.id + '">' +
       '  <div class="np-review-header">' +
-      '    <span class="np-review-author">' + esc(author) + '</span>' +
+      '    <span class="np-review-author">' + escapeHtml(author) + '</span>' +
       (r.rating ? '<span class="np-review-rating">⭐ ' + r.rating + '</span>' : "") +
       "  </div>" +
-      '  <div class="np-review-content">' + esc(r.content) + "</div>" +
+      '  <div class="np-review-content">' + escapeHtml(r.content) + "</div>" +
       '  <div class="np-review-meta">' +
-      '    <span class="np-review-semester">' + esc(r.semester || "") + '</span>' +
+      '    <span class="np-review-semester">' + escapeHtml(r.semester || "") + '</span>' +
       '    <span class="np-review-time">' + time + "</span>" +
       "  </div>" +
       "</div>"
@@ -1101,15 +1135,22 @@
   // 工具函数
   // ============================================================
 
-  /** HTML 转义 */
-  function esc(str) {
+  // ============================================================
+  // 工具函数 — MIRRORED FROM frontend/js/utils.js
+  // ============================================================
+  // ⚠️ content script 不能 import ESM，**手动镜像**下面三个函数。
+  // 修改 frontend/js/utils.js 后务必同步修改此处；删掉任一处会立刻显式报错。
+  // ============================================================
+
+  /** HTML 转义（镜像 frontend/js/utils.js:escapeHtml） */
+  function escapeHtml(str) {
     if (!str) return "";
     var div = document.createElement("div");
     div.appendChild(document.createTextNode(str));
     return div.innerHTML;
   }
 
-  /** 日期格式化 */
+  /** 日期格式化（镜像 frontend/js/utils.js:formatDate） */
   function formatDate(isoStr) {
     if (!isoStr) return "";
     try {
@@ -1271,7 +1312,7 @@
    */
   function showLoadingBar(text, type) {
     removeLoadingBar();
-    var topArea = document.querySelector("article#course-main .top");
+    var topArea = document.querySelector(SELECTORS.courseDetailTop);
     if (!topArea) return;
     var bar = document.createElement("div");
     bar.className = "np-loading-bar";
@@ -1318,7 +1359,7 @@
     }
 
     // 避免遮挡官方菜单：检测页面 header 高度，灵动岛定位在 header 下方
-    var header = document.querySelector(".cv-page-header");
+    var header = document.querySelector(SELECTORS.pageHeader);
     var top = 16;
     if (header) {
       var rect = header.getBoundingClientRect();
@@ -1359,7 +1400,7 @@
           // 在对应课程行的 badge-row 内追加 HTML
           var c = courses[w.query_index];
           if (!c) return;
-          var nameCell = c.row.querySelector(".kcmc");
+          var nameCell = c.row.querySelector(SELECTORS.nameCell);
           if (!nameCell) return;
           var badgeRow = nameCell.querySelector(".np-badge-row");
           if (badgeRow) {
@@ -1367,7 +1408,7 @@
           }
         } else if (w.type === "input_bar") {
           // 在课程表上方或下方插入输入框
-          var topArea = document.querySelector("article#course-main .top");
+          var topArea = document.querySelector(SELECTORS.courseDetailTop);
           if (topArea) {
             var position = w.position === "before_table" ? "beforebegin" : "afterend";
             topArea.insertAdjacentHTML(position, w.html);
@@ -1392,7 +1433,7 @@
           }
         } else if (w.type === "banner") {
           // 在页面指定位置插入横幅
-          var container = document.querySelector("article#course-main");
+          var container = document.querySelector(SELECTORS.courseDetailMain);
           if (container) {
             container.insertAdjacentHTML(w.position === "after_table" ? "beforeend" : "afterbegin", w.html);
           }
@@ -1571,13 +1612,8 @@
     }
   }
 
-  function escapeHtml(text) {
-    return String(text)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
+  // 注：HTML 转义函数已统一在文件开头定义（escapeHtml）。
+  // 这里曾有一份正则版实现，因与上方重复已被删除。
 
   /**
    * 带防抖的 processPage。
@@ -1618,8 +1654,8 @@
                 if (node.nodeType === Node.ELEMENT_NODE) {
                   // 检测是否有课程行被添加到 DOM
                   if (
-                    (node.matches && node.matches("tr.course-tr")) ||
-                    (node.querySelector && node.querySelector("tr.course-tr"))
+                    (node.matches && node.matches(SELECTORS.courseRowFallback)) ||
+                    (node.querySelector && node.querySelector(SELECTORS.courseRowFallback))
                   ) {
                     debouncedProcess();
                     return;
@@ -1634,7 +1670,7 @@
       });
 
       // 尽量精准地观察课程容器，退而求其次观察 body
-      var target = safeQuerySelector(".result-container") || document.body;
+      var target = safeQuerySelector(SELECTORS.resultContainer) || document.body;
       if (target) {
         observer.observe(target, { childList: true, subtree: true });
       }

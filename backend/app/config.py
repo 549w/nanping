@@ -31,10 +31,11 @@ class Settings(BaseSettings):
     # ---- CORS ----
     CORS_ORIGINS: list[str] = ["*"]
 
-    # ---- 认证 Mock 模式 ----
-    # 开发阶段跳过真实邮件发送，使用固定验证码
+    # ---- 验证码 ----
     AUTH_MOCK_MODE: bool = True
     MOCK_VERIFICATION_CODE: str = "123456"
+    AUTH_RESEND_COOLDOWN_SECONDS: int = 60  # 同邮箱重发冷却（秒）
+    AUTH_CODE_EXPIRE_MINUTES: int = 5  # 验证码有效期（分钟）
 
     # ---- 管理后台 ----
     ADMIN_SECRET_KEY: str = "change-me-admin-secret"

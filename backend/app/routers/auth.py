@@ -84,14 +84,15 @@ async def send_code(
             detail="该邮箱已注册，请直接登录",
         )
 
-    # 60 秒冷却期检查
+    # 冷却期检查（同一邮箱短时间内不可重复发送）
+    cooldown = settings.AUTH_RESEND_COOLDOWN_SECONDS
     existing = await _get_code_entry(db, email)
     if existing:
         last_sent = datetime.fromisoformat(existing.last_sent_at)
-        if (now - last_sent).total_seconds() < 60:
+        if (now - last_sent).total_seconds() < cooldown:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="请在 60 秒后重新获取验证码",
+                detail=f"请在 {cooldown} 秒后重新获取验证码",
             )
 
     # 生成验证码
@@ -112,7 +113,7 @@ async def send_code(
                 detail="验证码发送失败，请稍后重试",
             ) from exc
 
-    expires_at = (now + timedelta(minutes=5)).isoformat()
+    expires_at = (now + timedelta(minutes=settings.AUTH_CODE_EXPIRE_MINUTES)).isoformat()
 
     # UPSERT: 存在则更新，不存在则插入
     if existing:

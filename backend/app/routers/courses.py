@@ -9,12 +9,19 @@ import logging
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..activity import log_activity
 from ..database import get_db
 from ..models import Course, CourseOffering, Review, User
+from ..query_helpers import (
+    REVIEW_NOT_DELETED,
+    make_avg_rating_subq,
+    make_review_count_subq,
+    make_review_stats_subqueries,
+    make_user_email_expr,
+)
 from ..plugin_cache import (
     cached_find_exact_course,
     cached_get_top_reviews,
@@ -108,26 +115,10 @@ async def search_courses(
         conditions.append(Course.teacher.like(f"%{_escape_like(teacher)}%"))
 
     # 聚合子查询：评价数
-    review_count_subq = (
-        select(func.count(Review.id))
-        .where(Review.course_id == Course.id, Review.is_deleted == 0)
-        .correlate(Course)
-        .scalar_subquery()
-        .label("review_count")
-    )
+    review_count_subq = make_review_count_subq()
 
     # 聚合子查询：平均分
-    avg_rating_subq = (
-        select(func.avg(Review.rating))
-        .where(
-            Review.course_id == Course.id,
-            Review.is_deleted == 0,
-            Review.rating.isnot(None),
-        )
-        .correlate(Course)
-        .scalar_subquery()
-        .label("avg_rating")
-    )
+    avg_rating_subq = make_avg_rating_subq()
 
     # 聚合子查询：最近开课学期（用于排序）
     latest_semester_subq = (
@@ -228,7 +219,7 @@ async def get_course_detail(
         await db.execute(
             select(func.count(Review.id)).where(
                 Review.course_id == course_id,
-                Review.is_deleted == 0,
+                REVIEW_NOT_DELETED,
             )
         )
     ).scalar() or 0
@@ -238,7 +229,7 @@ async def get_course_detail(
         await db.execute(
             select(func.avg(Review.rating)).where(
                 Review.course_id == course_id,
-                Review.is_deleted == 0,
+                REVIEW_NOT_DELETED,
                 Review.rating.isnot(None),
             )
         )
@@ -327,28 +318,10 @@ def _name_match_score(query_name: str, course_name: str) -> float:
 def _make_review_stats_subqueries():
     """创建 review_count 和 avg_rating 的标量子查询。
 
-    供 _get_courses_by_code 和 _get_courses_by_teacher 复用，
-    避免重复写相同的子查询定义。
+    已迁移到 ``app.query_helpers.make_review_stats_subqueries``，
+    本函数保留为别名以兼容旧调用方。
     """
-    review_count_subq = (
-        select(func.count(Review.id))
-        .where(Review.course_id == Course.id, Review.is_deleted == 0)
-        .correlate(Course)
-        .scalar_subquery()
-        .label("review_count")
-    )
-    avg_rating_subq = (
-        select(func.avg(Review.rating))
-        .where(
-            Review.course_id == Course.id,
-            Review.is_deleted == 0,
-            Review.rating.isnot(None),
-        )
-        .correlate(Course)
-        .scalar_subquery()
-        .label("avg_rating")
-    )
-    return review_count_subq, avg_rating_subq
+    return make_review_stats_subqueries()
 
 
 async def _search_courses(
@@ -396,15 +369,12 @@ async def _get_top_reviews(
 
     匿名评价的 user_email 返回 null。
     """
-    user_email_expr = case(
-        (Review.is_anonymous == 1, None),
-        else_=User.email,
-    ).label("user_email")
+    user_email_expr = make_user_email_expr()
 
     query = (
         select(Review, user_email_expr)
         .join(User, Review.user_id == User.id)
-        .where(Review.course_id == course_id, Review.is_deleted == 0)
+        .where(Review.course_id == course_id, REVIEW_NOT_DELETED)
         .order_by(Review.created_at.desc())
         .limit(limit)
     )
@@ -492,9 +462,12 @@ async def _find_exact_course(
 
 
 async def _match_one(
-    idx: int, query, db: AsyncSession
+    idx: int, code: str, teacher: str, name: str, db: AsyncSession
 ) -> MatchResult:
-    """对单个 query 执行五级递进搜索，返回最佳匹配结果。
+    """对单个查询执行五级递进搜索，返回最佳匹配结果。
+
+    参数直接传 4 个字段而非 Pydantic 模型，避免插件端需要 duck-type
+    包装类，也让本函数对所有调用方有显式契约。
 
     搜索策略（从严格到宽松）：
     1. 课程号 + 教师 + 课程名
@@ -508,9 +481,9 @@ async def _match_one(
 
     此外，始终尝试精确匹配课程（用于写评价链接），即使该课程尚无评价。
     """
-    code = query.code.strip()
-    teacher_str = query.teacher.strip()
-    name = query.name.strip()
+    code = code.strip()
+    teacher_str = teacher.strip()
+    name = name.strip()
 
     # 精确匹配课程 ID（供「写评价」链接使用，不依赖评价）
     exact_course = await cached_find_exact_course(
@@ -578,7 +551,7 @@ async def match_courses(
     results: list[MatchResult] = []
     matched_count = 0
     for idx, query in enumerate(data.queries):
-        result = await _match_one(idx, query, db)
+        result = await _match_one(idx, query.code, query.teacher, query.name, db)
         if result.matched:
             matched_count += 1
         results.append(result)

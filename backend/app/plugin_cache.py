@@ -29,18 +29,28 @@ logger = logging.getLogger("nanping.cache")
 # ============================================================
 # 缓存实例（按功能分类）
 # ============================================================
+# TTL 全部从 settings 读取，修改 .env 即可生效。
+# 默认值与 config.py 中的 PLUGIN_CACHE_TTL_* 一致。
 
-# 课程精确匹配缓存：cache_key = "exact:{code}"
-_exact_course_cache = TTLCache(maxsize=500, default_ttl=300)
+# 课程精确匹配缓存：cache_key = "exact:{code}:{name}:{teacher}"
+_exact_course_cache = TTLCache(
+    maxsize=500, default_ttl=settings.PLUGIN_CACHE_TTL_COURSE
+)
 
 # 课程搜索缓存：cache_key = "search:{code}:{teacher}:{name}"
-_search_cache = TTLCache(maxsize=1000, default_ttl=300)
+_search_cache = TTLCache(
+    maxsize=1000, default_ttl=settings.PLUGIN_CACHE_TTL_COURSE
+)
 
 # 评价缓存：cache_key = "reviews:{course_id}:{limit}"
-_reviews_cache = TTLCache(maxsize=500, default_ttl=30)
+_reviews_cache = TTLCache(
+    maxsize=500, default_ttl=settings.PLUGIN_CACHE_TTL_REVIEWS
+)
 
 # 公告缓存：cache_key = "news:{limit}"
-_news_cache = TTLCache(maxsize=10, default_ttl=120)
+_news_cache = TTLCache(
+    maxsize=10, default_ttl=settings.PLUGIN_CACHE_TTL_NEWS
+)
 
 
 def get_all_caches() -> dict[str, TTLCache]:

@@ -255,14 +255,7 @@ async def plugin_endpoint(
     matched_count = 0
 
     for idx, pq in enumerate(data.queries):
-        # 构造 MatchQuery 兼容对象
-        q = type("_MQ", (), {
-            "code": pq.code,
-            "teacher": pq.teacher,
-            "name": pq.name,
-        })()
-
-        result = await _match_one(idx, q, db)
+        result = await _match_one(idx, pq.code, pq.teacher, pq.name, db)
         if result.matched:
             matched_count += 1
 

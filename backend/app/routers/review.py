@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import func, select, case
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..activity import log_activity
@@ -18,6 +18,11 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..limiter import limiter
 from ..models import Course, CourseOffering, Review, User
+from ..plugin_cache import clear_all_caches
+from ..query_helpers import (
+    REVIEW_NOT_DELETED,
+    make_user_email_expr,
+)
 from ..schemas import (
     MessageResponse,
     ReviewCreate,
@@ -57,15 +62,12 @@ async def list_reviews(
         )
 
     # user_email：匿名时返回 null
-    user_email_expr = case(
-        (Review.is_anonymous == 1, None),
-        else_=User.email,
-    ).label("user_email")
+    user_email_expr = make_user_email_expr()
 
     # 计数
     count_query = select(func.count(Review.id)).where(
         Review.course_id == course_id,
-        Review.is_deleted == 0,
+        REVIEW_NOT_DELETED,
     )
     total = (await db.execute(count_query)).scalar() or 0
 
@@ -74,7 +76,7 @@ async def list_reviews(
     query = (
         select(Review, user_email_expr)
         .join(User, Review.user_id == User.id)
-        .where(Review.course_id == course_id, Review.is_deleted == 0)
+        .where(Review.course_id == course_id, REVIEW_NOT_DELETED)
         .order_by(Review.created_at.desc())
         .offset(offset)
         .limit(page_size)
@@ -155,6 +157,10 @@ async def create_review(
     await db.commit()
     await db.refresh(review)
 
+    # 失效插件缓存：新评价提交后立即能被看到
+    # 否则 /plugin 端点的 reviews:{course_id}:5 会继续返回 30 秒旧数据
+    await clear_all_caches()
+
     # 记录活动日志
     detail_dict: dict = {"rating": data.rating, "is_anonymous": data.is_anonymous}
     if data.referrer:
@@ -211,6 +217,9 @@ async def delete_review(
     review.is_deleted = 1
     await db.commit()
 
+    # 失效插件缓存：删除评价后立即在 /plugin 中消失
+    await clear_all_caches()
+
     # 记录活动日志
     await log_activity(
         db, request, "review_delete",
@@ -241,7 +250,7 @@ async def list_my_reviews(
     # 计数
     count_query = select(func.count(Review.id)).where(
         Review.user_id == current_user.id,
-        Review.is_deleted == 0,
+        REVIEW_NOT_DELETED,
     )
     total = (await db.execute(count_query)).scalar() or 0
 
@@ -250,7 +259,7 @@ async def list_my_reviews(
     query = (
         select(Review, Course.name.label("course_name"), Course.code.label("course_code"))
         .join(Course, Review.course_id == Course.id)
-        .where(Review.user_id == current_user.id, Review.is_deleted == 0)
+        .where(Review.user_id == current_user.id, REVIEW_NOT_DELETED)
         .order_by(Review.created_at.desc())
         .offset(offset)
         .limit(page_size)
