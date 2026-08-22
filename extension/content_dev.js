@@ -577,6 +577,11 @@
    * @returns {Promise<Array|null>}
    */
   async function fetchNews() {
+    // 先读本地缓存（10 分钟内不重新请求）；命中即返回，不打网络
+    var cacheKey = "news:3";
+    var cached = await PersistentCache.get(cacheKey);
+    if (cached) return cached;
+
     var base = await getApiBase();
     if (!base) return null;
     try {
@@ -591,6 +596,7 @@
         console.warn("[Nanping] 公告 API 返回数据格式错误:", data);
         return null;
       }
+      PersistentCache.set(cacheKey, data, CACHE_TTL.news);
       return data;
     } catch (err) {
       console.warn("[Nanping] 公告获取失败:", err);
@@ -1517,17 +1523,31 @@
         showDynamicIsland("loading", loadingText);
       }, "显示加载提示", null);
 
-      // 3. 分离缓存命中和未命中的课程
+      // 3. 分离缓存命中和未命中的课程（内存 → 持久化，两级命中优先）
       var cacheKey = function (c) { return (c.code || "") + "|" + (c.teacher || ""); };
+      var courseKey = function (c) { return "course:" + cacheKey(c); };  // 持久化按课程粒度存
       var uncachedCourses = [];   // 去重后的待请求课程
       var rowGroups = new Map();  // dedupKey → [row, row, ...] 用于响应分发
-      newCourses.forEach(function (c) {
+
+      // 注入缓存徽章的辅助函数：把 row/data 作为参数立即捕获，
+      // 避免 for 循环里闭包共享同一个 var 变量导致的最后一行复用 bug。
+      function injectCachedBadge(row, data) {
+        safeExec(function () { injectBadge(row, data); }, "注入缓存徽章", null);
+      }
+
+      for (var i = 0; i < newCourses.length; i++) {
+        var c = newCourses[i];
+        // (a) 内存缓存命中 → 直接注入，不打网络
         if (state.courseCache[cacheKey(c)]) {
-          // 内存缓存命中，直接注入
-          safeExec(function () {
-            injectBadge(c.row, state.courseCache[cacheKey(c)]);
-          }, "注入缓存徽章", null);
-          return;
+          injectCachedBadge(c.row, state.courseCache[cacheKey(c)]);
+          continue;
+        }
+        // (b) 持久化缓存命中（跨页面/跨会话）→ 提进内存后注入，也不打网络
+        var persistedCourse = await PersistentCache.get(courseKey(c));
+        if (persistedCourse) {
+          state.courseCache[cacheKey(c)] = persistedCourse;
+          injectCachedBadge(c.row, persistedCourse);
+          continue;
         }
         // 批量内去重：相同 (code, teacher, name) 只发一次
         var dedupKey = (c.code || "") + "|" + (c.teacher || "") + "|" + (c.name || "");
@@ -1536,7 +1556,7 @@
           uncachedCourses.push(c);
         }
         rowGroups.get(dedupKey).push(c.row);
-      });
+      }
 
       // 4. 只对去重后的未缓存课程请求 API
       if (uncachedCourses.length > 0) {
@@ -1551,11 +1571,13 @@
         });
         var response = await fetchPluginData(queries, username, gender);
 
-        // 5. 把响应分发到对应行（含去重后的多对一）
+        // 5. 把响应分发到对应行（含去重后的多对一），并按课程粒度写盘
         uncachedCourses.forEach(function (c, idx) {
           var courseData = response && response.courses ? response.courses[idx] : null;
           if (courseData) {
             state.courseCache[cacheKey(c)] = courseData;
+            // 持久化写盘：下次页面/会话该课直接命中，不再请求
+            PersistentCache.set(courseKey(c), courseData, CACHE_TTL.course);
           }
           var dedupKey = (c.code || "") + "|" + (c.teacher || "") + "|" + (c.name || "");
           var rows = rowGroups.get(dedupKey) || [];
