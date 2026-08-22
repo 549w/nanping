@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Nanping - 南大课程评价",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "在南京大学选课系统中增强课程信息展示，查看课程评分和评价。",
   "browser_specific_settings": {
     "gecko": {

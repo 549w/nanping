@@ -577,11 +577,7 @@
    * @returns {Promise<Array|null>}
    */
   async function fetchNews() {
-    // 先读本地缓存（10 分钟内不重新请求）；命中即返回，不打网络
-    var cacheKey = "news:3";
-    var cached = await PersistentCache.get(cacheKey);
-    if (cached) return cached;
-
+    // 公告实时拉取，不使用任何缓存
     var base = await getApiBase();
     if (!base) return null;
     try {
@@ -596,7 +592,6 @@
         console.warn("[Nanping] 公告 API 返回数据格式错误:", data);
         return null;
       }
-      PersistentCache.set(cacheKey, data, CACHE_TTL.news);
       return data;
     } catch (err) {
       console.warn("[Nanping] 公告获取失败:", err);
@@ -1010,8 +1005,16 @@
       state.isPanelOpen = true;
       document.body.style.overflow = "hidden";
 
-      // 组装面板内容：公告卡片（缓存） + 课程面板（后端预渲染）
+      // 公告：实时从 /news 拉取，渲染为 HTML（不用任何缓存）
+      // 网络失败时回退到 /plugin 响应里的 state.newsHtml，保证面板仍可用
       var newsHtml = state.newsHtml || "";
+      try {
+        var newsList = await fetchNews();
+        var fresh = renderNewsHtml(newsList);
+        if (fresh) newsHtml = fresh;
+      } catch (e) {
+        console.warn("[Nanping] 公告实时拉取失败，使用上次缓存:", e);
+      }
       var panelHtml = courseData ? courseData.panel_html : "";
 
       renderPanelContent(newsHtml, panelHtml);
@@ -1086,6 +1089,34 @@
       '    <span class="np-review-semester">' + escapeHtml(r.semester || "") + '</span>' +
       '    <span class="np-review-time">' + time + "</span>" +
       "  </div>" +
+      "</div>"
+    );
+  }
+
+  /**
+   * 把公告 JSON 数组渲染为面板顶部卡片 HTML。
+   * 复刻后端 _render_news_html 的结构，确保 CSS class 一致。
+   *
+   * @param {Array|null} newsItems
+   * @returns {string} HTML 字符串；无有效公告时返回 ""
+   */
+  function renderNewsHtml(newsItems) {
+    if (!newsItems || newsItems.length === 0) return "";
+    var news = newsItems[0];
+    if (!news || !news.title) return "";
+
+    var preview = news.content || "";
+    if (preview.length > 80) preview = preview.substring(0, 80) + "...";
+
+    return (
+      '<div class="np-news-card">' +
+      '  <div class="np-news-card-header">' +
+      '    <span class="np-news-card-icon">&#x1F4E2;</span>' +
+      '    <span class="np-news-card-label">最新公告</span>' +
+      "  </div>" +
+      '<div class="np-news-card-title">' + escapeHtml(news.title) + "</div>" +
+      (preview ? '<div class="np-news-card-preview">' + escapeHtml(preview) + "</div>" : "") +
+      '  <a class="np-news-card-link" href="https://nanping.eznju.com" target="_blank">查看详情 →</a>' +
       "</div>"
     );
   }
