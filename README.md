@@ -16,7 +16,7 @@
 
 <div align="center">
 
-# 🧩 400+ &nbsp;&nbsp;&nbsp; 📚 34,000+ &nbsp;&nbsp;&nbsp; 💬 11,300+
+# 🧩 470+ &nbsp;&nbsp;&nbsp; 📚 34,000+ &nbsp;&nbsp;&nbsp; 💬 11,300+
 
 **插件用户** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **收录课程** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **评价总数**
 
