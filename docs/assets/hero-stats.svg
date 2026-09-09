@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="240" viewBox="0 0 880 240" role="img" aria-label="700+ 位南大同学正在使用南评，收录课程 34,000+，评价总数 11,300+">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="880" y2="240" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2E1065"/>
+      <stop offset=".55" stop-color="#7B2D8E"/>
+      <stop offset="1" stop-color="#C026D3"/>
+    </linearGradient>
+    <linearGradient id="num" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F0ABFC"/>
+    </linearGradient>
+    <clipPath id="card">
+      <rect width="880" height="240" rx="22"/>
+    </clipPath>
+    <style>
+      .sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+      .cjk  { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+    </style>
+  </defs>
+
+  <g clip-path="url(#card)">
+    <rect width="880" height="240" fill="url(#bg)"/>
+    <!-- 装饰光斑 -->
+    <circle cx="820" cy="30"  r="150" fill="#FFFFFF" opacity=".07"/>
+    <circle cx="70"  cy="235" r="120" fill="#FFFFFF" opacity=".05"/>
+    <circle cx="640" cy="215" r="80"  fill="#F0ABFC" opacity=".08"/>
+  </g>
+
+  <!-- 主数字 -->
+  <text class="sans" x="56" y="66" font-size="15" font-weight="700" letter-spacing="4" fill="#E9D5FF" opacity=".9">PLUGIN USERS</text>
+  <text class="sans" x="52" y="176" font-size="124" font-weight="800" letter-spacing="-3" fill="url(#num)">700+</text>
+  <text class="cjk"  x="56" y="212" font-size="21" font-weight="600" fill="#F5D0FE">位南大同学正在使用南评</text>
+
+  <!-- 副统计 -->
+  <g transform="translate(560 58)">
+    <rect width="264" height="124" rx="16" fill="#FFFFFF" opacity=".13"/>
+    <text class="sans" x="24" y="46" font-size="29" font-weight="800" fill="#FFFFFF">34,000+</text>
+    <text class="cjk"  x="152" y="46" font-size="15" font-weight="500" fill="#F5D0FE" opacity=".95">收录课程</text>
+    <text class="sans" x="24" y="94" font-size="29" font-weight="800" fill="#FFFFFF">11,300+</text>
+    <text class="cjk"  x="152" y="94" font-size="15" font-weight="500" fill="#F5D0FE" opacity=".95">评价总数</text>
+  </g>
+</svg>
