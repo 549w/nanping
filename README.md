@@ -3,6 +3,13 @@
     南评
   </div>
   <p><strong>南京大学选课系统课程信息增强工具</strong></p>
+
+  <p>
+    <a href="https://nanping.site/download"><img alt="插件用户 700+" src="https://img.shields.io/badge/USERS-700%2B-7B2D8E?style=for-the-badge&logo=googlechrome&logoColor=white&labelColor=1A1A1A"></a>
+    &nbsp;<img alt="收录课程 34,000+" src="https://img.shields.io/badge/COURSES-34%2C000%2B-4A4A4A?style=for-the-badge&labelColor=1A1A1A">
+    &nbsp;<img alt="评价总数 11,300+" src="https://img.shields.io/badge/REVIEWS-11%2C300%2B-4A4A4A?style=for-the-badge&labelColor=1A1A1A">
+  </p>
+
   <p>
     <a href="#功能">功能</a> ·
     <a href="#快速开始">快速开始</a> ·
@@ -16,20 +23,19 @@
 
 <div align="center">
 
-# 🧩 700+ &nbsp;&nbsp;&nbsp; 📚 34,000+ &nbsp;&nbsp;&nbsp; 💬 11,300+
+## 🎉 700+ 位南大同学正在用南评选课
 
-**插件用户** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **收录课程** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **评价总数**
+### 每一次打开选课页，评分就在课程旁边。
 
-<sub>数据截至 2026 年 9 月 4 日</sub>
+📚 收录课程 **34,000+** &nbsp;·&nbsp; 💬 评价总数 **11,300+** &nbsp;·&nbsp; 🏫 覆盖全校院系
+
+**[▸ 立即安装插件](https://nanping.site/download)** &nbsp;&nbsp;|&nbsp;&nbsp; [访问官网](https://nanping.site)
+
+<sub>数据截至 2026 年 9 月 9 日</sub>
 
 </div>
 
 Nanping 是一个面向 [南京大学选课系统](https://xk.nju.edu.cn) 的课程信息增强工具。它通过浏览器插件在选课页面中注入课程评分数据，并配合后端 API 提供评价查询与存储服务，帮助同学们更明智地选课。
-
-## 立即体验
-
-[南评官网](https://nanping.eznju.com) 
-[南评插件](https://nanping.eznju.com/download)
 
 ## 功能
 
