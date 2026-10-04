@@ -196,8 +196,10 @@
     departmentCell: ".kkdw",                      // 开课单位
 
     // 用户信息（顶栏）
-    username: ".username",
-    userImg: ".user-img",
+    // 限定在 header.cv-page-header > .userinfo 内，避免 querySelector 命中
+    // 页面上其他 class 为 username / user-img 的元素（如弹窗、模板、注入内容）
+    username: "header.cv-page-header .userinfo .username",
+    userImg: "header.cv-page-header .userinfo .user-img",
 
     // 课程详情页
     courseDetailTop: "article#course-main .top",
